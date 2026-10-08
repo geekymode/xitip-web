@@ -49,7 +49,7 @@ em++ -O2 -std=c++11 \
     -o "$ROOT/docs/xitip.js" \
     --no-entry \
     -sMODULARIZE=1 -sEXPORT_NAME=createXitip \
-    -sEXPORTED_FUNCTIONS='["_xitip_solve","_xitip_variables","_malloc","_free"]' \
+    -sEXPORTED_FUNCTIONS='["_xitip_solve","_xitip_conditions","_xitip_variables","_malloc","_free"]' \
     -sEXPORTED_RUNTIME_METHODS='["ccall","cwrap","UTF8ToString"]' \
     -sALLOW_MEMORY_GROWTH=1 \
     -sENVIRONMENT=web,worker,node \

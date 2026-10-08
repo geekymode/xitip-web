@@ -44,6 +44,13 @@
   details code, details td:first-child { font:13px/1.5 ui-monospace,Menlo,Consolas,monospace; }
   details p { margin:10px 0; }
   a { color:#2f6feb; }
+  .conds h3 { font-size:1rem; margin:22px 0 4px; }
+  .cond { border:1px solid var(--line); border-radius:8px; background:var(--card);
+          padding:10px 14px; margin-top:10px; display:flex; gap:12px;
+          align-items:flex-start; justify-content:space-between; flex-wrap:wrap; }
+  .cond code { font:13px/1.5 ui-monospace,Menlo,Consolas,monospace; display:block; }
+  .cond .why { color:var(--dim); font-size:.88rem; margin:0 0 4px; }
+  .cond button { font-size:.85rem; padding:5px 12px; }
   footer { margin-top:32px; color:var(--dim); font-size:.82rem; }
   .ex button { background:none; border:1px solid var(--line); color:var(--ink);
                font:13px/1.4 ui-monospace,Menlo,Consolas,monospace;
@@ -61,6 +68,7 @@
     <button id="go">Prove</button>
     <button id="cancel" class="ghost" hidden>Cancel</button>
     <label class="check"><input type="checkbox" id="withproof" checked> show the proof</label>
+    <label class="check"><input type="checkbox" id="withconds" checked> if not provable, suggest conditions</label>
     <span class="meta">H(X,Y) &nbsp; H(X|Y) &nbsp; I(X;Y|Z) &nbsp; X/Y/Z (Markov) &nbsp; X.Y (independent) &nbsp; X:Y (function of)</span>
   </div>
 
@@ -94,6 +102,13 @@
        non-negative combination that gives it. <b>FALSE</b> means it does not
        follow from them; for four or more variables a non-Shannon inequality
        could still make it true.</p>
+    <p>When a statement is not provable, the page looks for conditions
+       under which it would be: it tries assuming each elemental quantity is
+       zero (an independence, a conditional independence, or that one
+       variable is a function of the others), alone and then in pairs, and
+       lists the smallest sets that work. <b>Prove with this</b> adds a set to
+       the constraints and proves again, so you can see the proof that uses
+       it.</p>
     <p>The work grows as 2<sup>n</sup> in the number of random variables
        <i>n</i>: up to about 8 is quick, beyond 10 is impractical. A long run
        can be stopped with Cancel. Press Cmd/Ctrl+Enter to prove.</p>
@@ -153,7 +168,7 @@ for (const [stmt, extra] of EXAMPLES) {
 // The prover runs in a worker. Cancelling terminates it and starts a fresh
 // one, since a synchronous wasm call cannot be interrupted any other way.
 // Each request has an id so a reply from a cancelled run is ignored.
-let worker = null, ready = false, current = 0, timer = null;
+let worker = null, ready = false, current = 0, timer = null, wantConditions = false;
 
 function startWorker() {
   ready = false;
@@ -174,8 +189,19 @@ function startWorker() {
       if (data.nvars >= 9) $("hint").textContent = data.nvars +
           " random variables: this may take a long time.";
     } else if (data.type === "result") {
-      finish();
       render(data.reply, data.nvars);
+      // after FALSE the worker goes on to look for conditions; the run is
+      // not over until they come back, and Cancel still stops it
+      if (wantConditions && data.reply.startsWith("FALSE")) {
+        $("out").insertAdjacentHTML("beforeend",
+          '<div class="conds" id="conds"><p class="meta">looking for conditions ' +
+          'that would make it provable\u2026 <span id="elapsed"></span></p></div>');
+      } else {
+        finish();
+      }
+    } else if (data.type === "conditions") {
+      finish();
+      render_conditions(data.reply);
     } else if (data.type === "error") {
       finish();
       show_error(data.message);
@@ -197,9 +223,12 @@ function prove() {
                        ' <span id="hint"></span></p>';
   const t0 = performance.now();
   timer = setInterval(() => {
-    $("elapsed").textContent = ((performance.now() - t0) / 1000).toFixed(0) + " s";
+    const el = $("elapsed");
+    if (el) el.textContent = ((performance.now() - t0) / 1000).toFixed(0) + " s";
   }, 1000);
-  worker.postMessage({ id: current, text, proof: $("withproof").checked });
+  wantConditions = $("withconds").checked;
+  worker.postMessage({ id: current, text, proof: $("withproof").checked,
+                       conditions: wantConditions });
 }
 
 function finish() {
@@ -213,7 +242,10 @@ function cancel() {
   if (!current) return;
   worker.terminate();
   finish();
-  $("out").innerHTML = '<p class="meta">cancelled.</p>';
+  if ($("conds"))           // the verdict is in; only the search is stopped
+    $("conds").innerHTML = '<p class="meta">search for conditions cancelled.</p>';
+  else
+    $("out").innerHTML = '<p class="meta">cancelled.</p>';
   $("go").disabled = true;
   $("status").textContent = "restarting the prover…";
   startWorker();
@@ -243,6 +275,69 @@ function render(reply, nvars) {
   $("out").innerHTML = html;
   const pre = $("out").querySelector("pre");
   if (pre) pre.textContent = body.trim();
+}
+
+// The reply is a header line, then each set of assumptions as lines of
+// "constraint<TAB>meaning", with a blank line after each set.
+function render_conditions(reply) {
+  const box = $("conds");
+  if (!box) return;
+  const lines = reply.split("\n");
+  if (lines[0] === "ERROR") {
+    box.innerHTML = '<p class="meta"></p>';
+    box.firstChild.textContent = "No conditions: " + lines.slice(1).join(" ").trim();
+    return;
+  }
+  const [, candidates, , maxsize, exhausted] = lines[0].split(" ");
+  const sets = [];
+  let set = [];
+  for (const line of lines.slice(1)) {
+    if (line === "") { if (set.length) sets.push(set); set = []; continue; }
+    const tab = line.indexOf("\t");
+    set.push({ constraint: line.slice(0, tab), meaning: line.slice(tab + 1) });
+  }
+  if (set.length) sets.push(set);
+
+  box.innerHTML = "";
+  const note = (text) => {
+    const p = document.createElement("p");
+    p.className = "meta";
+    p.textContent = text;
+    box.appendChild(p);
+  };
+  if (!sets.length) {
+    note("No set of at most " + maxsize + (maxsize === "1" ? " assumption" : " assumptions") +
+         " out of " + candidates + " candidates makes it provable" +
+         (exhausted === "1" ? "." : " within the search budget."));
+    return;
+  }
+  const h = document.createElement("h3");
+  h.textContent = "Provable if you assume any one of these:";
+  box.appendChild(h);
+  for (const s of sets) {
+    const card = document.createElement("div");
+    card.className = "cond";
+    const text = document.createElement("div");
+    for (const { constraint, meaning } of s) {
+      const c = document.createElement("code");
+      c.textContent = constraint;
+      const w = document.createElement("p");
+      w.className = "why";
+      w.textContent = meaning;
+      text.append(c, w);
+    }
+    const b = document.createElement("button");
+    b.className = "ghost";
+    b.textContent = "Prove with this";
+    b.onclick = () => {
+      $("expr").value = $("expr").value.trim() + "\n" +
+                        s.map(x => x.constraint).join("\n");
+      prove();
+    };
+    card.append(text, b);
+    box.appendChild(card);
+  }
+  if (exhausted !== "1") note("The search stopped early; there may be more.");
 }
 
 $("go").disabled = true;

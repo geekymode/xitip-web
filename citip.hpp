@@ -93,6 +93,17 @@ public:
     bool check(const SparseVector&, Proof* proof,
                const std::vector<std::string>* vars);
 
+    // The elemental inequalities are the first rows. Forcing one to zero
+    // turns it from a basic inequality into an assumption, which is how the
+    // search for sufficient conditions tries them without rebuilding.
+    int num_elemental() const;
+    const RowInfo& row(int k) const { return row_info[k]; }   // 0-based
+    void force_zero(int k, bool on);
+
+    // A point where I < 0 (for an inequality I >= 0 that does not hold),
+    // as the value of every elemental quantity there. False if none.
+    bool counterexample(const SparseVector&, std::vector<double>* elemental);
+
 protected:
     glp_prob* lp;
     std::vector<RowInfo> row_info;      // one per row, in the order added
@@ -157,6 +168,32 @@ bool check(const ParserOutput&);
 // Prove every inquiry, writing the proofs to the stream. Returns false as
 // soon as one of them does not hold.
 bool prove(const ParserOutput&, std::ostream& out, bool show_proof);
+
+
+// One set of assumptions under which a statement becomes provable: each is
+// an elemental quantity forced to zero, as constraint text that can be fed
+// back to the prover, and as a sentence.
+struct SufficientCondition
+{
+    std::vector<std::string> constraints;
+    std::vector<std::string> meanings;
+};
+
+struct Conditions
+{
+    std::vector<SufficientCondition> found;
+    int candidates = 0;     // elemental quantities that could be assumed zero
+    int tested = 0;         // sets of them actually tried
+    int maxsize = 0;
+    bool exhausted = true;  // false if the search stopped at limit or budget
+};
+
+// For a statement that is not provable: the smallest sets of at most
+// `maxsize` assumptions that make it provable, at most `limit` of them,
+// trying at most `budget` sets. As sufficient_conditions in Xitip.jl.
+Conditions sufficient_conditions(const ParserOutput&, int maxsize = 2,
+                                 int limit = 6, int budget = 4000);
+void print_conditions(std::ostream& out, const Conditions&);
 
 
 #endif // include guard

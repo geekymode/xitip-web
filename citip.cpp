@@ -707,6 +707,59 @@ bool LinearProblem::check(const SparseVector& v, Proof* proof,
 }
 
 
+int LinearProblem::num_elemental() const
+{
+    int n = 0;
+    while (n < (int) row_info.size() && row_info[n].kind != RowInfo::CONSTRAINT)
+        ++n;
+    return n;
+}
+
+
+void LinearProblem::force_zero(int k, bool on)
+{
+    glp_set_row_bnds(lp, k + 1, on ? GLP_FX : GLP_LO, 0.0, 0.0);
+}
+
+
+// The LP for "is I >= 0" minimises I over a cone (or, with constant terms in
+// the constraints, a polyhedron), so when I can go negative it usually can
+// go to minus infinity and the solver reports no point. Bounding I from
+// below by -(|c|+1), c being I's constant, keeps the minimum finite while
+// still below -c, so the optimum is a point where I < 0.
+bool LinearProblem::counterexample(const SparseVector& v,
+                                   std::vector<double>* elemental)
+{
+    SparseVector bound(v);
+    bound.is_equality = false;
+    bound.entries.erase(0);
+    double lowest = -(fabs(v.get(0)) + 1);
+    bound.inc(0, -lowest);                      // I_linear - lowest >= 0
+    add(bound);
+    int extra = glp_get_num_rows(lp);
+
+    glp_smcp parm;
+    glp_init_smcp(&parm);
+    parm.msg_lev = GLP_MSG_OFF;
+    int num_cols = glp_get_num_cols(lp);
+    for (int i = 1; i <= num_cols; ++i)
+        glp_set_obj_coef(lp, i, v.get(i));
+
+    bool found = glp_simplex(lp, &parm) == 0
+              && glp_get_status(lp) == GLP_OPT
+              && glp_get_obj_val(lp) + v.get(0) < -tolerance(v);
+    if (found && elemental) {
+        elemental->assign(num_elemental(), 0.0);
+        for (int k = 0; k < (int) elemental->size(); ++k)
+            (*elemental)[k] = glp_get_row_prim(lp, k + 1);
+    }
+    int rows[2] = {0, extra};
+    glp_del_rows(lp, 1, rows);
+    glp_std_basis(lp);          // the old basis may refer to the deleted row
+    return found;
+}
+
+
 ShannonTypeProblem::ShannonTypeProblem(int num_vars)
     : LinearProblem()
 {
@@ -854,4 +907,240 @@ bool check(const ParserOutput& out)
             return false;
     }
     return true;
+}
+
+
+//----------------------------------------
+// What would make a statement true
+//----------------------------------------
+//
+// A statement that is not provable may become provable once something is
+// assumed about the variables. The assumptions tried are the elemental
+// quantities, each forced to zero: every one of them reads as a condition
+// anybody would state -- an independence, a conditional independence, or a
+// functional dependence -- and they are already rows of the LP, so trying
+// one is changing a row's bounds and solving again from the last basis.
+//
+// The counterexample prunes the search. If a quantity is already zero at
+// the counterexample, assuming it is zero leaves that counterexample in
+// place, so a set of assumptions is worth testing only when at least one of
+// its members is strictly positive there.
+
+namespace {
+
+std::string join(const std::vector<std::string>& parts, const char* sep)
+{
+    std::string out;
+    for (size_t k = 0; k < parts.size(); ++k)
+        out += (k ? sep : "") + parts[k];
+    return out;
+}
+
+std::vector<std::string> members(int set, const std::vector<std::string>& vars)
+{
+    std::vector<std::string> out;
+    for (int v = 0; v < (int) vars.size(); ++v)
+        if (set & (1 << v))
+            out.push_back(vars[v]);
+    return out;
+}
+
+// the elemental quantity, as constraint text the parser accepts
+std::string condition_text(const RowInfo& r, const std::vector<std::string>& vars)
+{
+    int all = (1 << vars.size()) - 1;
+    if (r.kind == RowInfo::ENTROPY) {
+        int rest = all & ~(1 << r.i);
+        return "H(" + vars[r.i] + (rest ? "|" + set_name(rest, vars) : "")
+             + ") = 0";
+    }
+    return "I(" + vars[r.a] + ";" + vars[r.b]
+         + (r.K ? "|" + set_name(r.K, vars) : "") + ") = 0";
+}
+
+// what forcing it to zero says about the variables
+std::string condition_meaning(const RowInfo& r, const std::vector<std::string>& vars)
+{
+    int all = (1 << vars.size()) - 1;
+    if (r.kind == RowInfo::ENTROPY) {
+        std::vector<std::string> others = members(all & ~(1 << r.i), vars);
+        if (others.empty())
+            return vars[r.i] + " is a constant";
+        return vars[r.i] + " is a function of " + join(others, ", ")
+             + ", written " + vars[r.i] + ":" + join(others, ",");
+    }
+    const std::string& a = vars[r.a];
+    const std::string& b = vars[r.b];
+    std::vector<std::string> given = members(r.K, vars);
+    if (given.empty())
+        return a + " and " + b + " are independent, written " + a + "." + b;
+    // with everything else given, this is exactly a three part Markov chain
+    std::string out = a + " and " + b + " are independent given " + join(given, ", ");
+    if (given.size() + 2 == vars.size())
+        out += ", the Markov chain " + a + "/" + join(given, ",") + "/" + b;
+    return out;
+}
+
+// Every inquiry, both ways round for an equality, as inequalities I >= 0.
+std::vector<SparseVector> directions(const Matrix& inquiries)
+{
+    std::vector<SparseVector> out;
+    for (auto&& inquiry : inquiries) {
+        SparseVector a(inquiry);
+        a.is_equality = false;
+        out.push_back(a);
+        if (inquiry.is_equality) {
+            for (auto&& ent : a.entries)
+                ent.second = -ent.second;
+            out.push_back(a);
+        }
+    }
+    return out;
+}
+
+// whether every direction holds; an assumption that leaves no feasible
+// point proves everything vacuously, which is no help, so that is a no
+bool holds_all(LinearProblem& prob, const std::vector<SparseVector>& dirs)
+{
+    try {
+        for (auto&& d : dirs)
+            if (!prob.check(d))
+                return false;
+        return true;
+    }
+    catch (std::runtime_error&) {
+        return false;
+    }
+}
+
+}
+
+
+Conditions sufficient_conditions(const ParserOutput& out, int maxsize,
+                                 int limit, int budget)
+{
+    if (maxsize < 1)
+        throw std::runtime_error("maxsize must be at least one");
+    if (out.var_names.empty())
+        throw std::runtime_error("there are no random variables to make "
+                                 "assumptions about");
+
+    ShannonTypeProblem prob(out.var_names.size());
+    for (auto&& constraint : out.constraints)
+        prob.add(constraint);
+    std::vector<SparseVector> dirs = directions(out.inquiries);
+    if (holds_all(prob, dirs))
+        throw std::runtime_error("the statement is already provable, so "
+                                 "there is nothing to assume");
+
+    // the candidates, in the order Xitip.jl lists them: the entropies, then
+    // for each pair of variables the conditioning sets from largest down
+    std::vector<int> order(prob.num_elemental());
+    for (int k = 0; k < (int) order.size(); ++k)
+        order[k] = k;
+    std::stable_sort(order.begin(), order.end(), [&prob](int x, int y) {
+        const RowInfo& p = prob.row(x);
+        const RowInfo& q = prob.row(y);
+        if (p.kind != q.kind) return p.kind == RowInfo::ENTROPY;
+        if (p.kind == RowInfo::ENTROPY) return p.i < q.i;
+        if (p.a != q.a) return p.a < q.a;
+        if (p.b != q.b) return p.b < q.b;
+        return p.K > q.K;
+    });
+
+    Conditions result;
+    result.candidates = (int) order.size();
+    result.maxsize = maxsize;
+
+    // a quantity already zero at the counterexample cannot rule it out
+    std::vector<bool> useful(order.size(), true);
+    for (auto&& d : dirs) {
+        std::vector<double> value;
+        if (prob.counterexample(d, &value)) {
+            double scale = 1;
+            for (double x : value)
+                scale = std::max(scale, fabs(x));
+            for (size_t c = 0; c < order.size(); ++c)
+                useful[c] = value[order[c]] > 1e-7 * scale;
+            break;
+        }
+    }
+
+    std::vector<std::vector<int>> found;    // as positions in `order`
+    auto covered = [&found](const std::vector<int>& set) {
+        for (auto&& f : found)
+            if (std::includes(set.begin(), set.end(), f.begin(), f.end()))
+                return true;
+        return false;
+    };
+
+    int n = (int) order.size();
+    bool stop = false;
+    for (int size = 1; size <= std::min(maxsize, n) && !stop; ++size) {
+        std::vector<int> set(size);
+        for (int k = 0; k < size; ++k)
+            set[k] = k;
+        while (!stop) {
+            bool any_useful = false;
+            for (int c : set)
+                any_useful = any_useful || useful[c];
+            if (any_useful && !covered(set)) {
+                if (result.tested >= budget) {
+                    result.exhausted = false;
+                    stop = true;
+                    break;
+                }
+                ++result.tested;
+                for (int c : set) prob.force_zero(order[c], true);
+                bool works = holds_all(prob, dirs);
+                for (int c : set) prob.force_zero(order[c], false);
+                if (works) {
+                    found.push_back(set);
+                    SufficientCondition cond;
+                    for (int c : set) {
+                        const RowInfo& r = prob.row(order[c]);
+                        cond.constraints.push_back(condition_text(r, out.var_names));
+                        cond.meanings.push_back(condition_meaning(r, out.var_names));
+                    }
+                    result.found.push_back(cond);
+                    if ((int) result.found.size() >= limit) {
+                        result.exhausted = false;
+                        stop = true;
+                        break;
+                    }
+                }
+            }
+            // next subset of this size, in lexicographic order
+            int k = size - 1;
+            while (k >= 0 && set[k] == n - size + k)
+                --k;
+            if (k < 0)
+                break;
+            ++set[k];
+            for (int m = k + 1; m < size; ++m)
+                set[m] = set[m - 1] + 1;
+        }
+    }
+    return result;
+}
+
+
+void print_conditions(std::ostream& os, const Conditions& c)
+{
+    if (c.found.empty()) {
+        os << "No set of at most " << c.maxsize
+           << (c.maxsize == 1 ? " assumption" : " assumptions")
+           << " out of " << c.candidates << " candidates makes it provable"
+           << (c.exhausted ? "" : " within the budget") << ".\n";
+        return;
+    }
+    os << "Provable if you assume any one of these:\n";
+    for (size_t k = 0; k < c.found.size(); ++k) {
+        const SufficientCondition& cond = c.found[k];
+        os << "\n  " << k + 1 << ". " << join(cond.constraints, "  and  ") << "\n";
+        for (auto&& meaning : cond.meanings)
+            os << "       " << meaning << "\n";
+    }
+    if (!c.exhausted)
+        os << "\n(search stopped early; there may be more)\n";
 }

@@ -16,6 +16,24 @@ const cases = [
   ["",                                              "ERROR", -1],
 ];
 
+// Sufficient conditions for statements that are not provable: the sets
+// Xitip.jl's sufficient_conditions finds, in its order, each set's
+// assumptions joined by " & ". Every set must also make the statement
+// provable when it is added back as constraints.
+const conditionCases = [
+  ["I(X;Y|Z) <= I(X;Y)", ["I(X;Y|Z) = 0", "I(X;Z|Y) = 0", "I(Y;Z|X) = 0"]],
+  ["I(X;Y) <= I(X;Y|Z)", ["I(X;Y) = 0", "I(X;Z) = 0", "I(Y;Z) = 0"]],
+  ["H(X) <= H(Y)",       ["H(X|Y) = 0"]],
+  ["H(X,Y) = H(X) + H(Y)", ["I(X;Y) = 0"]],
+  ["I(X;Z) <= I(X;Y)",   ["I(X;Z|Y) = 0", "I(X;Z) = 0"]],
+  ["2 I(C;D) <= I(A;B) + I(A;C,D) + 3 I(C;D|A) + I(C;D|B)",
+   ["I(C;D) = 0", "I(C;A|D,B) = 0", "I(C;A|B) = 0", "I(C;A) = 0",
+    "I(C;B|D,A) = 0", "I(C;B|A) = 0"]],
+  ["I(X;Y,Z) <= I(X;Y)",
+   ["I(X;Z|Y) = 0", "I(X;Y|Z) = 0 & I(X;Z) = 0", "I(X;Z) = 0 & I(Y;Z|X) = 0"]],
+  ["H(X,Y,Z) = H(X) + H(Y) + H(Z)", []],     // needs three assumptions
+];
+
 createXitip().then(mod => {
   const solve = mod.cwrap("xitip_solve", "string", ["string", "number"]);
   const nvars = mod.cwrap("xitip_variables", "number", ["string"]);
@@ -31,6 +49,31 @@ createXitip().then(mod => {
     else if (wantVars >= 0 && got !== wantVars) { note = ` vars ${got} != ${wantVars}`; bad++; }
     console.log(`${note ? "FAIL" : " ok "}  ${head.padEnd(5)} ${JSON.stringify(text).slice(0,44).padEnd(46)}${note}`);
   }
+
+  const conditions = mod.cwrap("xitip_conditions", "string", ["string"]);
+  console.log("\n--- sufficient conditions ---");
+  for (const [text, want] of conditionCases) {
+    const reply = conditions(text);
+    const sets = reply.split("\n").slice(1).join("\n").split("\n\n")
+      .map(block => block.split("\n").filter(Boolean).map(l => l.split("\t")[0]))
+      .filter(set => set.length);
+    const got = sets.map(set => set.join(" & "));
+    let note = "";
+    if (!reply.startsWith("CONDITIONS")) note = " " + reply.replace(/\n/g, " ");
+    else if (JSON.stringify(got) !== JSON.stringify(want))
+      note = ` got ${JSON.stringify(got)}`;
+    else {
+      const weak = sets.find(set => !solve([text, ...set].join("\n"), 0).startsWith("TRUE"));
+      if (weak) note = ` does not prove it: ${weak.join(" & ")}`;
+    }
+    if (note) bad++;
+    console.log(`${note ? "FAIL" : " ok "}  ${String(got.length).padEnd(5)} ${JSON.stringify(text).slice(0,44).padEnd(46)}${note}`);
+  }
+  const proven = conditions("H(X,Y,Z) <= H(X,Y) + H(Z)");
+  const refused = proven.startsWith("ERROR") && proven.includes("already provable");
+  if (!refused) bad++;
+  console.log(`${refused ? " ok " : "FAIL"}  ERROR a provable statement is refused`);
+
   console.log(bad ? `\n${bad} failed` : "\nall good");
   // show one proof in full, to confirm it is the real thing
   console.log("\n--- proof from wasm ---");

@@ -44,6 +44,31 @@ what it has always done::
 
     The information expression is TRUE.
 
+``--conditions`` goes on, for a statement that is not provable, to look
+for assumptions that would make it provable::
+
+    $ ./oXitipLen --conditions 'I(X;Y|Z) <= I(X;Y)'
+    The information expression is FALSE.
+
+    Provable if you assume any one of these:
+
+      1. I(X;Y|Z) = 0
+           X and Y are independent given Z, the Markov chain X/Z/Y
+
+      2. I(X;Z|Y) = 0
+           X and Z are independent given Y, the Markov chain X/Y/Z
+
+      3. I(Y;Z|X) = 0
+           Y and Z are independent given X, the Markov chain Y/X/Z
+
+Each assumption sets one elemental quantity to zero -- an independence, a
+conditional independence, or a functional dependence. Single assumptions
+are tried first, then pairs, and a set is reported only if no smaller one
+inside it already works. A counterexample to the statement prunes the
+search: assuming a quantity is zero cannot help if it is already zero
+there. This is ``sufficient_conditions`` from Xitip.jl, and the two find
+the same sets in the same order.
+
 The first expression is the statement; any further ones are constraints.
 With no expression, or with ``-`` last, they are read from standard input,
 one per line.

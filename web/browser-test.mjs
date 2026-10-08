@@ -91,6 +91,22 @@ await check("TRUE", 1, "2 H(X,Y,Z) <= H(X,Y) + H(Y,Z) + H(X,Z)");
 await check("TRUE", 1, "H(X) <= H(Y)\nX:Y");
 await check("NONE", 0, "H(X) <<< H(Y)");   // a syntax error shows a message, not a verdict
 
+// Not provable: the page suggests conditions, and proving with one of them
+// comes back TRUE, with the assumption added to the constraints.
+{
+  await load("I(X;Y|Z) <= I(X;Y)");
+  await until(`document.querySelectorAll("#conds .cond").length > 0`);
+  const shown = await js(`[...document.querySelectorAll("#conds .cond code")].map(c => c.textContent)`);
+  const want = ["I(X;Y|Z) = 0", "I(X;Z|Y) = 0", "I(Y;Z|X) = 0"];
+  report(JSON.stringify(shown) === JSON.stringify(want), "conditions for I(X;Y|Z) <= I(X;Y)",
+         JSON.stringify(shown));
+  await js(`document.querySelectorAll("#conds .cond button")[1].click()`);
+  const proved = await until(`${verdict} === "TRUE"`, 10000);
+  const text = await js(`document.getElementById("expr").value`);
+  report(proved && text === "I(X;Y|Z) <= I(X;Y)\nI(X;Z|Y) = 0", "prove with a suggested condition",
+         `(verdict ${await js(verdict)}, input ${JSON.stringify(text)})`);
+}
+
 // Cancel: start a problem too big to finish quickly, cancel it, and check
 // that the restarted prover still answers.
 {

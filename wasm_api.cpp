@@ -69,6 +69,36 @@ const char* xitip_solve(const char* text, int want_proof)
     return result.c_str();
 }
 
+// For a statement that is not provable, the assumptions that would make it
+// provable, as sufficient_conditions() finds them. Returns
+//     CONDITIONS <candidates> <tested> <maxsize> <exhausted 0|1>
+// then each set as its assumptions, one per line as
+//     <constraint>\t<meaning>
+// with a blank line after each set; or ERROR\n<message>.
+const char* xitip_conditions(const char* text)
+{
+    try {
+        ParserOutput out = parse(split_lines(text));
+        Conditions c = sufficient_conditions(out);
+        std::ostringstream os;
+        os << "CONDITIONS " << c.candidates << " " << c.tested << " "
+           << c.maxsize << " " << (c.exhausted ? 1 : 0) << "\n";
+        for (auto&& cond : c.found) {
+            for (size_t k = 0; k < cond.constraints.size(); ++k)
+                os << cond.constraints[k] << "\t" << cond.meanings[k] << "\n";
+            os << "\n";
+        }
+        result = os.str();
+    }
+    catch (std::exception& e) {
+        result = std::string("ERROR\n") + e.what();
+    }
+    catch (...) {
+        result = "ERROR\nunknown error";
+    }
+    return result.c_str();
+}
+
 // How many distinct random variables the expression mentions, or -1 if it
 // does not parse.
 int xitip_variables(const char* text)

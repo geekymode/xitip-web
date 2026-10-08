@@ -20,6 +20,7 @@ try
     vector<string> expr;
     bool prove_it = false;
     bool show_proof = false;
+    bool conditions = false;
 
     // Options come first; everything after them is the expression and its
     // constraints. With none of them the tool counts variables, which is
@@ -31,6 +32,8 @@ try
             prove_it = true;
         } else if (arg == "--proof" || arg == "--steps") {
             prove_it = show_proof = true;
+        } else if (arg == "--conditions") {
+            prove_it = conditions = true;
         } else if (arg == "--") {
             // everything after this is input, even if it looks like a flag;
             // a caller passing untrusted text should always use it
@@ -38,12 +41,14 @@ try
             break;
         } else if (arg == "--help" || arg == "-h") {
             cout <<
-                "usage: oXitipLen [--prove|--proof] EXPRESSION [CONSTRAINT...]\n"
+                "usage: oXitipLen [--prove|--proof] [--conditions] EXPRESSION [CONSTRAINT...]\n"
                 "\n"
-                "  (no option)  print the number of distinct random variables\n"
-                "  --prove      say whether the expression is true\n"
-                "  --proof      say so, and print why\n"
-                "  --steps      the same as --proof\n"
+                "  (no option)   print the number of distinct random variables\n"
+                "  --prove       say whether the expression is true\n"
+                "  --proof       say so, and print why\n"
+                "  --steps       the same as --proof\n"
+                "  --conditions  if it is not provable, find assumptions that\n"
+                "                would make it so\n"
                 "  --           end of options; everything after is input\n"
                 "\n"
                 "With no expression, or with '-' last, they are read from\n"
@@ -80,6 +85,10 @@ try
     bool holds = prove(out, cout, show_proof);
     cout << "The information expression is "
          << (holds ? "TRUE" : "FALSE") << "." << endl;
+    if (!holds && conditions) {
+        cout << endl;
+        print_conditions(cout, sufficient_conditions(out));
+    }
     return 0;
 }
 catch (std::exception& e)
