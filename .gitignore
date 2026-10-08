@@ -1,0 +1,13 @@
+# build products
+build/
+oXitipLen
+*.o
+*.d
+
+# The original Xitip distribution, which bundles qsopt.a. QSopt is not open
+# source, so it is deliberately not redistributed here.
+Xitip.tar
+
+# Superseded duplicates of citip.{cpp,hpp}; nothing builds them.
+oXitipLen.cpp
+oXitipLen.hpp

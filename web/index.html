@@ -1,0 +1,146 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>oXitip — information inequality prover</title>
+<style>
+  :root { color-scheme: light; --ink:#1b1d21; --dim:#5c6370; --line:#d9dde3;
+          --true:#1f6f43; --false:#9b2c1f; --bg:#fbfbfa; --card:#fff; }
+  @media (prefers-color-scheme: dark) {
+    :root { color-scheme: dark; --ink:#e8eaed; --dim:#9aa3b0; --line:#343a44;
+            --true:#5fcf92; --false:#f0877a; --bg:#16181c; --card:#1e2128; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.55
+         system-ui,-apple-system,"Segoe UI",sans-serif; }
+  .wrap { max-width: 820px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 1.5rem; margin: 0 0 4px; }
+  p.sub { color: var(--dim); margin: 0 0 24px; }
+  textarea { width:100%; min-height:120px; padding:12px; border-radius:8px;
+             border:1px solid var(--line); background:var(--card);
+             color:var(--ink); font:14px/1.5 ui-monospace,Menlo,Consolas,monospace;
+             resize:vertical; }
+  .row { display:flex; gap:12px; align-items:center; flex-wrap:wrap;
+         margin-top:12px; }
+  button { font:inherit; padding:9px 18px; border-radius:8px; cursor:pointer;
+           border:1px solid transparent; background:#2f6feb; color:#fff; }
+  button:disabled { opacity:.55; cursor:default; }
+  label.check { color:var(--dim); font-size:.9rem; display:flex; gap:6px;
+                align-items:center; cursor:pointer; }
+  .verdict { margin-top:24px; font-size:1.15rem; font-weight:600; }
+  .verdict.t { color: var(--true); } .verdict.f { color: var(--false); }
+  .meta { color:var(--dim); font-size:.88rem; font-weight:400; }
+  pre { background:var(--card); border:1px solid var(--line); border-radius:8px;
+        padding:14px; overflow-x:auto; font:13px/1.5 ui-monospace,Menlo,
+        Consolas,monospace; margin-top:12px; }
+  .err { color:var(--false); margin-top:20px; white-space:pre-wrap;
+         font:13px/1.5 ui-monospace,Menlo,Consolas,monospace; }
+  .ex { margin-top:28px; border-top:1px solid var(--line); padding-top:16px; }
+  .ex h2 { font-size:.95rem; color:var(--dim); font-weight:600; margin:0 0 8px; }
+  .ex button { background:none; border:1px solid var(--line); color:var(--ink);
+               font:13px/1.4 ui-monospace,Menlo,Consolas,monospace;
+               padding:6px 10px; margin:0 6px 6px 0; }
+</style>
+
+<div class="wrap">
+  <h1>oXitip</h1>
+  <p class="sub">Proves Shannon-type information inequalities, and shows why.</p>
+
+  <textarea id="expr" spellcheck="false"
+    placeholder="One statement, then any constraints, one per line:&#10;&#10;I(W;Z) &lt;= I(X;Y)&#10;W/X/Y/Z"></textarea>
+
+  <div class="row">
+    <button id="go">Prove</button>
+    <label class="check"><input type="checkbox" id="withproof" checked> show the proof</label>
+    <span class="meta">H(X,Y) &nbsp; H(X|Y) &nbsp; I(X;Y|Z) &nbsp; X/Y/Z (Markov) &nbsp; X.Y (independent) &nbsp; X:Y (function of)</span>
+  </div>
+
+  <div id="out"></div>
+
+  <div class="ex">
+    <h2>Examples</h2>
+    <div id="examples"></div>
+  </div>
+</div>
+
+<script>
+const EXAMPLES = [
+  ["H(X,Y,Z) <= H(X,Y) + H(Z)", ""],
+  ["I(X;Y|Z) <= I(X;Y)", ""],
+  ["I(W;Z) <= I(X;Y)", "W/X/Y/Z"],
+  ["2 H(X,Y,Z) <= H(X,Y) + H(Y,Z) + H(X,Z)", ""],
+  ["H(X) <= H(Y)", "X:Y"],
+  ["I(X;Y;Z) >= 0", ""],
+];
+const $ = id => document.getElementById(id);
+
+// A link can carry the problem, which makes results shareable and the page
+// testable without a human to click the button:
+//   index.html#H(X,Y,Z) <= H(X,Y) + H(Z)
+// Constraints go on their own lines, as encoded newlines (%0A). Note that
+// ";" cannot be the separator: it is part of I(X;Y).
+function fromHash() {
+  const raw = decodeURIComponent(location.hash.replace(/^#/, "")).trim();
+  if (!raw) return false;
+  $("expr").value = raw.split("\n").map(s => s.trim()).filter(Boolean).join("\n");
+  return true;
+}
+
+
+for (const [stmt, extra] of EXAMPLES) {
+  const b = document.createElement("button");
+  b.textContent = stmt + (extra ? "   [" + extra + "]" : "");
+  b.onclick = () => { $("expr").value = extra ? stmt + "\n" + extra : stmt;
+                      prove(); };
+  $("examples").appendChild(b);
+}
+
+async function prove() {
+  const text = $("expr").value.trim();
+  const out = $("out");
+  if (!text) { out.innerHTML = ""; return; }
+  $("go").disabled = true;
+  out.innerHTML = '<p class="meta">proving…</p>';
+  try {
+    const r = await fetch("/api/prove", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({expression: text, proof: $("withproof").checked}),
+    });
+    const data = await r.json();
+    render(data);
+  } catch (e) {
+    out.innerHTML = '<div class="err">could not reach the prover</div>';
+  } finally {
+    $("go").disabled = false;
+  }
+}
+
+function render(d) {
+  const out = $("out");
+  if (!d.ok) {
+    out.innerHTML = '<div class="err"></div>';
+    out.firstChild.textContent = d.error || "something went wrong";
+    return;
+  }
+  const yes = d.verdict === true;
+  const vars = d.variables ? ' <span class="meta">(' + d.variables +
+        (d.variables === 1 ? " random variable" : " random variables") + ')</span>' : "";
+  let html = '<div class="verdict ' + (yes ? "t" : "f") + '">The information expression is ' +
+             (yes ? "TRUE" : "FALSE") + '.' + vars + '</div>';
+  if (yes && d.proof) {
+    html += "<pre></pre>";
+  } else if (!yes) {
+    html += '<p class="meta">Not provable from the basic inequalities. ' +
+            'For four variables or more that means "not Shannon-type", ' +
+            'which is weaker than false.</p>';
+  }
+  out.innerHTML = html;
+  if (yes && d.proof) out.querySelector("pre").textContent = d.proof;
+}
+
+$("go").onclick = prove;
+if (fromHash()) prove();
+$("expr").addEventListener("keydown", e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === "Enter") prove();
+});
+</script>
