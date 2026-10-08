@@ -9,6 +9,10 @@ set -u
 DIR=$(cd "$(dirname "$0")/../docs" && pwd)
 PORT=${1:-8899}
 CHROME=${CHROME:-}
+# with a URL argument the published site is checked instead of a local copy:
+#   sh web/browser-test.sh https://geekymode.github.io/xitip-web/
+BASE=""
+case "${1:-}" in http://*|https://*) BASE=${1%/}; PORT=0;; esac
 
 if [ -z "$CHROME" ]; then
     for c in "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
@@ -20,12 +24,15 @@ if [ -z "$CHROME" ]; then
     done
 fi
 [ -n "$CHROME" ] || { echo "no Chrome-like browser found; set CHROME=..." >&2; exit 1; }
-[ -f "$DIR/xitip.wasm" ] || { echo "no wasm build; run web/build-wasm.sh" >&2; exit 1; }
-
-(cd "$DIR" && python3 -m http.server "$PORT" >/dev/null 2>&1) &
-SERVER=$!
-trap 'kill $SERVER 2>/dev/null' EXIT INT TERM
-sleep 2
+if [ -z "$BASE" ]; then
+    [ -f "$DIR/xitip.wasm" ] || { echo "no wasm build; run web/build-wasm.sh" >&2; exit 1; }
+    (cd "$DIR" && python3 -m http.server "$PORT" >/dev/null 2>&1) &
+    SERVER=$!
+    trap 'kill $SERVER 2>/dev/null' EXIT INT TERM
+    sleep 2
+    BASE="http://localhost:$PORT"
+fi
+echo "checking $BASE"
 
 fail=0
 check() {                       # check WANT PROOF expression...
@@ -33,7 +40,7 @@ check() {                       # check WANT PROOF expression...
     enc=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$expr")
     dom=$("$CHROME" --headless --disable-gpu --no-sandbox \
           --virtual-time-budget=15000 \
-          --dump-dom "http://localhost:$PORT/#$enc" 2>/dev/null)
+          --dump-dom "$BASE/#$enc" 2>/dev/null)
     got=$(printf '%s' "$dom" | sed -n 's/.*The information expression is \([A-Z]*\)\..*/\1/p' | head -1)
     proof=$(printf '%s' "$dom" | grep -c "Proof of  E &gt;= 0")
     label=$(printf '%s' "$expr" | tr '\n' '/')
