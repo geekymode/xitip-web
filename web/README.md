@@ -54,7 +54,10 @@ What is *not* handled here, and should be if this faces the open internet:
 ## The version with no server at all
 
 `docs/` is the same tool with the prover compiled to WebAssembly, so
-there is no backend: the page, `xitip.js` and `xitip.wasm` are all there is.
+there is no backend: the page, `worker.js`, `xitip.js` and `xitip.wasm` are
+all there is. The prover runs in a Web Worker (`worker.js`), so a long
+problem leaves the page responsive, and Cancel stops it by terminating the
+worker and starting a fresh one.
 Nothing the user types leaves their machine, there is nothing to rate limit
 or sandbox, and it can be published on GitHub Pages at no cost.
 
@@ -108,8 +111,11 @@ ok    I(X;Y|Z) <= I(X;Y)  FALSE
 all good in the browser
 ```
 
-It serves `docs/`, drives headless Chrome at it, and reads the verdict
-back out of the DOM. Set `CHROME=` to point at another Chromium-like
+It serves `docs/`, drives headless Chrome at it over the DevTools protocol
+(`web/browser-test.mjs`, Node 22 or later), and reads the verdict back out of
+the DOM. It also cancels a long run and checks that the prover answers
+again afterwards. Chrome's `--dump-dom` is not enough here, because it does
+not wait for the worker. Set `CHROME=` to point at another Chromium-like
 browser.
 
 By hand, which is worth doing once:
@@ -136,6 +142,8 @@ Constraints are separate lines, encoded as `%0A`. The separator cannot be
 ### Publishing it
 
 `docs/` is self-contained, so it can be copied to any static host.
+It is served at https://www.oxitip.com from GitHub Pages; `docs/CNAME` names
+that domain, and the domain's DNS points at GitHub Pages.
 On GitHub Pages, note that `.wasm` must be served as `application/wasm` —
 Pages does this already, as does `python3 -m http.server` for local
 checking.

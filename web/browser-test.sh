@@ -1,7 +1,9 @@
 #!/bin/sh
 # Load the published page in a real browser and read the verdict out of the DOM.
-# This is the check that node cannot make: it exercises the page, the wasm
-# and the browser's own WebAssembly runtime together.
+# This is the check that node alone cannot make: it exercises the page, the
+# Web Worker, the wasm and the browser's own WebAssembly runtime together.
+# The browser is driven by browser-test.mjs (Node >= 22); this script finds
+# Chrome and serves docs/.
 #
 #   sh web/browser-test.sh [port]
 set -u
@@ -32,36 +34,4 @@ if [ -z "$BASE" ]; then
     sleep 2
     BASE="http://localhost:$PORT"
 fi
-echo "checking $BASE"
-
-fail=0
-check() {                       # check WANT PROOF expression...
-    want=$1; wantproof=$2; expr=$3
-    enc=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$expr")
-    dom=$("$CHROME" --headless --disable-gpu --no-sandbox \
-          --virtual-time-budget=15000 \
-          --dump-dom "$BASE/#$enc" 2>/dev/null)
-    got=$(printf '%s' "$dom" | sed -n 's/.*The information expression is \([A-Z]*\)\..*/\1/p' | head -1)
-    proof=$(printf '%s' "$dom" | grep -c "Proof of  E &gt;= 0")
-    label=$(printf '%s' "$expr" | tr '\n' '/')
-    if [ "${got:-NONE}" != "$want" ] || [ "$proof" != "$wantproof" ]; then
-        echo "FAIL  $label  (verdict ${got:-NONE}, proof $proof)"
-        fail=1
-    else
-        echo "ok    $label  $want"
-    fi
-}
-
-check TRUE  1 "H(X,Y,Z) <= H(X,Y) + H(Z)"
-check FALSE 0 "I(X;Y|Z) <= I(X;Y)"
-check TRUE  1 "I(W;Z) <= I(X;Y)
-W/X/Y/Z"
-check TRUE  1 "2 H(X,Y,Z) <= H(X,Y) + H(Y,Z) + H(X,Z)"
-check TRUE  1 "H(X) <= H(Y)
-X:Y"
-check NONE  0 "H(X) <<< H(Y)"           # a syntax error shows a message, not a verdict
-
-[ $fail -eq 0 ] && echo "
-all good in the browser" || echo "
-something failed"
-exit $fail
+CHROME="$CHROME" node "$(dirname "$0")/browser-test.mjs" "$BASE"

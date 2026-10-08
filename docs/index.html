@@ -36,6 +36,15 @@
          font:13px/1.5 ui-monospace,Menlo,Consolas,monospace; }
   .ex { margin-top:28px; border-top:1px solid var(--line); padding-top:16px; }
   .ex h2 { font-size:.95rem; color:var(--dim); font-weight:600; margin:0 0 8px; }
+  button.ghost { background:none; border-color:var(--line); color:var(--ink); }
+  details { margin-top:20px; border-top:1px solid var(--line); padding-top:14px; }
+  summary { cursor:pointer; font-weight:600; color:var(--dim); font-size:.95rem; }
+  details table { border-collapse:collapse; margin:10px 0; font-size:.92rem; }
+  details td { padding:4px 14px 4px 0; vertical-align:top; }
+  details code, details td:first-child { font:13px/1.5 ui-monospace,Menlo,Consolas,monospace; }
+  details p { margin:10px 0; }
+  a { color:#2f6feb; }
+  footer { margin-top:32px; color:var(--dim); font-size:.82rem; }
   .ex button { background:none; border:1px solid var(--line); color:var(--ink);
                font:13px/1.4 ui-monospace,Menlo,Consolas,monospace;
                padding:6px 10px; margin:0 6px 6px 0; }
@@ -50,6 +59,7 @@
 
   <div class="row">
     <button id="go">Prove</button>
+    <button id="cancel" class="ghost" hidden>Cancel</button>
     <label class="check"><input type="checkbox" id="withproof" checked> show the proof</label>
     <span class="meta">H(X,Y) &nbsp; H(X|Y) &nbsp; I(X;Y|Z) &nbsp; X/Y/Z (Markov) &nbsp; X.Y (independent) &nbsp; X:Y (function of)</span>
   </div>
@@ -61,9 +71,55 @@
     <h2>Examples</h2>
     <div id="examples"></div>
   </div>
+
+  <details id="help">
+    <summary>Help</summary>
+    <p>Type one statement on the first line. Any further lines are constraints
+       that the statement may assume. Variable names are letters, digits and
+       <code>_</code>, starting with a letter.</p>
+    <table>
+      <tr><td>H(X)  H(X,Y)</td><td>entropy, joint entropy</td></tr>
+      <tr><td>H(X|Y)</td><td>conditional entropy</td></tr>
+      <tr><td>I(X;Y)  I(X;Y|Z)</td><td>mutual information, conditional mutual information</td></tr>
+      <tr><td>I(X;Y;Z)</td><td>interaction (multivariate) information</td></tr>
+      <tr><td>2 H(X) - 0.5 I(X;Y)</td><td>linear combinations with numeric coefficients</td></tr>
+      <tr><td>&lt;=  &gt;=  =</td><td>the relation to prove (or to assume, as a constraint)</td></tr>
+      <tr><td>X/Y/Z</td><td>constraint: X, Y, Z form a Markov chain</td></tr>
+      <tr><td>X.Y.Z</td><td>constraint: X, Y, Z are mutually independent</td></tr>
+      <tr><td>X:Y</td><td>constraint: X is a function of Y, that is H(X|Y) = 0</td></tr>
+      <tr><td># ...</td><td>comment, ignored</td></tr>
+    </table>
+    <p><b>TRUE</b> means the statement follows from the basic (Shannon)
+       inequalities and the constraints, and the proof shows the
+       non-negative combination that gives it. <b>FALSE</b> means it does not
+       follow from them; for four or more variables a non-Shannon inequality
+       could still make it true.</p>
+    <p>The work grows as 2<sup>n</sup> in the number of random variables
+       <i>n</i>: up to about 8 is quick, beyond 10 is impractical. A long run
+       can be stopped with Cancel. Press Cmd/Ctrl+Enter to prove.</p>
+    <p>A result can be shared by link: the page reads the problem from the
+       part of the address after <code>#</code>.</p>
+  </details>
+
+  <details id="about">
+    <summary>About</summary>
+    <p>oXitip is an information-theoretic inequality prover. It compiles the
+       C++ prover to WebAssembly, so the whole computation runs on your
+       computer, in this page, and nothing you type is sent to a server.</p>
+    <p>It descends from <a href="http://user-www.ie.cuhk.edu.hk/~ITIP/">ITIP</a>
+       by Raymond W. Yeung and Ying-On Yan, through
+       <a href="http://xitip.epfl.ch/">Xitip</a> by Rethnakaran Pulikkoonattu,
+       Etienne Perron and Suhas Diggavi, and Citip, the C++ command-line fork
+       by Thomas Gläßle.</p>
+    <p>Source: <a href="https://github.com/geekymode/xitip-web">github.com/geekymode/xitip-web</a>.</p>
+  </details>
+
+  <footer>&copy; 2020&ndash;2026 oXitip &middot; Nivedita Rethnakar, Suhas Diggavi,
+    Thomas Gläßle, Etienne Perron, Rethna Pulikkoonattu, Raymond W. Yeung,
+    Ying-On Yan</footer>
 </div>
 
-<script src="xitip.js"></script>
+
 <script>
 const EXAMPLES = [
   ["H(X,Y,Z) <= H(X,Y) + H(Z)", ""],
@@ -87,8 +143,6 @@ function fromHash() {
   return true;
 }
 
-let solve = null, countVars = null;
-
 for (const [stmt, extra] of EXAMPLES) {
   const b = document.createElement("button");
   b.textContent = stmt + (extra ? "   [" + extra + "]" : "");
@@ -96,33 +150,73 @@ for (const [stmt, extra] of EXAMPLES) {
   $("examples").appendChild(b);
 }
 
-createXitip().then(mod => {
-  solve = mod.cwrap("xitip_solve", "string", ["string", "number"]);
-  countVars = mod.cwrap("xitip_variables", "number", ["string"]);
-  $("status").textContent = "";
-  $("go").disabled = false;
-  if (fromHash()) prove();
-  document.body.dataset.ready = "1";       // a headless check waits for this
-}).catch(e => {
-  $("status").textContent = "could not load the prover: " + e;
-});
+// The prover runs in a worker. Cancelling terminates it and starts a fresh
+// one, since a synchronous wasm call cannot be interrupted any other way.
+// Each request has an id so a reply from a cancelled run is ignored.
+let worker = null, ready = false, current = 0, timer = null;
 
-// The prover is synchronous and can take a moment on larger problems, so
-// let the browser paint the "proving..." line before it blocks.
+function startWorker() {
+  ready = false;
+  worker = new Worker("worker.js");
+  worker.onmessage = ({ data }) => {
+    if (data.type === "ready") {
+      ready = true;
+      $("status").textContent = "";
+      $("go").disabled = false;
+      if (!document.body.dataset.ready) {
+        document.body.dataset.ready = "1";   // a headless check waits for this
+        if (fromHash()) prove();
+      }
+      return;
+    }
+    if (data.id !== current) return;          // from a run that was cancelled
+    if (data.type === "vars") {
+      if (data.nvars >= 9) $("hint").textContent = data.nvars +
+          " random variables: this may take a long time.";
+    } else if (data.type === "result") {
+      finish();
+      render(data.reply, data.nvars);
+    } else if (data.type === "error") {
+      finish();
+      show_error(data.message);
+    }
+  };
+  worker.onerror = e => {
+    finish();
+    $("status").textContent = "could not load the prover: " + (e.message || e);
+  };
+}
+
 function prove() {
   const text = $("expr").value.trim();
-  if (!text || !solve) return;
+  if (!text || !ready || current) return;
+  current = Date.now();
   $("go").disabled = true;
-  $("out").innerHTML = '<p class="meta">proving\u2026</p>';
-  setTimeout(() => {
-    try {
-      render(solve(text, $("withproof").checked ? 1 : 0), countVars(text));
-    } catch (e) {
-      show_error("the prover failed: " + e);
-    } finally {
-      $("go").disabled = false;
-    }
-  }, 0);
+  $("cancel").hidden = false;
+  $("out").innerHTML = '<p class="meta">proving… <span id="elapsed"></span>' +
+                       ' <span id="hint"></span></p>';
+  const t0 = performance.now();
+  timer = setInterval(() => {
+    $("elapsed").textContent = ((performance.now() - t0) / 1000).toFixed(0) + " s";
+  }, 1000);
+  worker.postMessage({ id: current, text, proof: $("withproof").checked });
+}
+
+function finish() {
+  current = 0;
+  clearInterval(timer);
+  $("cancel").hidden = true;
+  $("go").disabled = !ready;
+}
+
+function cancel() {
+  if (!current) return;
+  worker.terminate();
+  finish();
+  $("out").innerHTML = '<p class="meta">cancelled.</p>';
+  $("go").disabled = true;
+  $("status").textContent = "restarting the prover…";
+  startWorker();
 }
 
 function show_error(message) {
@@ -153,7 +247,9 @@ function render(reply, nvars) {
 
 $("go").disabled = true;
 $("go").onclick = prove;
+$("cancel").onclick = cancel;
 $("expr").addEventListener("keydown", e => {
   if ((e.metaKey || e.ctrlKey) && e.key === "Enter") prove();
 });
+startWorker();
 </script>
