@@ -46,6 +46,11 @@
   details code, details td:first-child { font:13px/1.5 ui-monospace,Menlo,Consolas,monospace; }
   details p { margin:10px 0; }
   details h3 { font-size:.95rem; margin:18px 0 4px; }
+  a.cite { text-decoration:none; font-size:.85em; }
+  ol.refs { padding-left:1.6em; font-size:.9rem; }
+  ol.refs li { margin:6px 0; scroll-margin-top:16px; }
+  ol.refs li:target { background:var(--card); outline:1px solid var(--line); border-radius:4px; }
+  ol.refs a { word-break:break-all; }
   a { color:#2f6feb; }
   .conds h3 { font-size:1rem; margin:22px 0 4px; }
   .cond { border:1px solid var(--line); border-radius:8px; background:var(--card);
@@ -119,41 +124,107 @@
        part of the address after <code>#</code>.</p>
   </details>
 
+  <details id="foundations">
+    <summary>Information Theory Foundations</summary>
+
+    <h3>Entropy</h3>
+    <p>The <b>entropy</b> of a discrete random variable <i>X</i> with
+       distribution <i>p</i>(<i>x</i>) is
+       H(X) = &minus;&sum;<sub><i>x</i></sub> <i>p</i>(<i>x</i>) log<sub>2</sub> <i>p</i>(<i>x</i>),
+       the average number of bits needed to describe <i>X</i>, or
+       equivalently the uncertainty about <i>X</i> before it is observed
+       <a class="cite" href="#ref-1">[1]</a>. It is zero exactly when
+       <i>X</i> is a constant. The <b>joint entropy</b> H(X,Y) is the entropy
+       of the pair (<i>X</i>,<i>Y</i>) taken as one variable, and the
+       <b>conditional entropy</b> H(X|Y) = H(X,Y) &minus; H(Y) is the
+       uncertainty left in <i>X</i> once <i>Y</i> is known. They are tied
+       together by the <b>chain rule</b> H(X,Y) = H(Y) + H(X|Y), and
+       H(X|Y) = 0 exactly when <i>X</i> is a function of <i>Y</i>.</p>
+
+    <h3>Mutual information</h3>
+    <p>The <b>mutual information</b>
+       I(X;Y) = H(X) + H(Y) &minus; H(X,Y) = H(X) &minus; H(X|Y)
+       is the reduction in uncertainty about <i>X</i> from learning
+       <i>Y</i>, and it is symmetric. It is zero exactly when <i>X</i> and
+       <i>Y</i> are independent. The <b>conditional mutual information</b>
+       I(X;Y|Z) = H(X,Z) + H(Y,Z) &minus; H(X,Y,Z) &minus; H(Z) is the same
+       quantity once <i>Z</i> is known; it is zero exactly when <i>X</i> and
+       <i>Y</i> are conditionally independent given <i>Z</i>, that is, when
+       <i>X</i>&nbsp;&rarr;&nbsp;<i>Z</i>&nbsp;&rarr;&nbsp;<i>Y</i> is a
+       Markov chain. These four kinds of quantity are <b>Shannon's
+       information measures</b>
+       <a class="cite" href="#ref-1">[1]</a><a class="cite" href="#ref-7">[7]</a>.</p>
+
+    <h3>The I-Measure</h3>
+    <p>Yeung showed that Shannon's information measures behave like a
+       measure on sets <a class="cite" href="#ref-2">[2]</a>: associate a
+       set with each random variable, and entropy, conditional entropy and
+       mutual information become the measures of unions, differences and
+       intersections of those sets. This <b>I-Measure</b> makes
+       <b>information diagrams</b>, Venn diagrams for random variables,
+       exact rather than just a mnemonic. It also explains quantities such
+       as I(X;Y;Z), the measure of the common part of three sets, which
+       unlike the others can be negative.</p>
+
+    <h3>Entropy vectors and the entropic region</h3>
+    <p>For <i>n</i> random variables, list the joint entropies of all
+       2<sup><i>n</i></sup>&nbsp;&minus;&nbsp;1 non-empty subsets of them.
+       This is the <b>entropy vector</b> <b>h</b> of their joint
+       distribution. Every information measure is a linear function of
+       <b>h</b>, so every <b>linear information inequality</b>, such as
+       I(X;Y|Z) &le; I(X;Y), says that a linear function of <b>h</b> is
+       non-negative. Let &Gamma;<sub><i>n</i></sub><sup>*</sup> be the set
+       of all entropy vectors that some joint distribution actually has,
+       the <b>entropic region</b>. An inequality is a theorem of information
+       theory exactly when it holds at every point of
+       &Gamma;<sub><i>n</i></sub><sup>*</sup>.</p>
+
+    <h3>Yeung's framework: Shannon-type inequalities</h3>
+    <p>The <b>basic inequalities</b> say that all of Shannon's information
+       measures are non-negative. Each of them is a linear inequality in
+       <b>h</b>, so together they cut out a polyhedral cone
+       &Gamma;<sub><i>n</i></sub> that contains
+       &Gamma;<sub><i>n</i></sub><sup>*</sup>. Yeung's framework
+       <a class="cite" href="#ref-3">[3]</a> makes this the basis of a
+       decision procedure. An inequality is <b>Shannon-type</b> if it holds
+       on all of &Gamma;<sub><i>n</i></sub>, which is the same as saying it
+       is a non-negative combination of basic inequalities, and whether
+       that is so can be decided by <b>linear programming</b>. The basic
+       inequalities are themselves sums of a minimal set of
+       <b>elemental inequalities</b>, H(X<sub><i>i</i></sub> | all the other
+       variables) &ge; 0 and
+       I(X<sub><i>i</i></sub>;X<sub><i>j</i></sub>|X<sub><i>K</i></sub>) &ge; 0,
+       of which there are
+       <i>n</i>&nbsp;+&nbsp;C(<i>n</i>,2)&middot;2<sup><i>n</i>&minus;2</sup>,
+       so the linear program only needs those. Constraints such as
+       independence or Markov conditions are linear in <b>h</b> too, which
+       is how constrained inequalities are checked the same way. This
+       framework, developed in Yeung's books
+       <a class="cite" href="#ref-5">[5]</a><a class="cite" href="#ref-6">[6]</a>,
+       is what ITIP <a class="cite" href="#ref-8">[8]</a>, Xitip
+       <a class="cite" href="#ref-9">[9]</a> and this tool implement.</p>
+
+    <h3>Beyond Shannon-type</h3>
+    <p>For three variables, &Gamma;<sub>3</sub> is the closure of
+       &Gamma;<sub>3</sub><sup>*</sup>, so every valid unconstrained
+       inequality in three variables is Shannon-type. For four or more it is
+       not: Zhang and Yeung found the first <b>non-Shannon-type
+       inequality</b> <a class="cite" href="#ref-4">[4]</a>,
+       2&nbsp;I(C;D) &le; I(A;B) + I(A;C,D) + 3&nbsp;I(C;D|A) + I(C;D|B),
+       which holds for every distribution but cannot be derived from the
+       basic inequalities. So when this tool answers TRUE the statement is
+       a theorem, and when it answers FALSE for four or more variables the
+       statement may still be a theorem, just not a Shannon-type one.</p>
+  </details>
+
   <details id="about">
     <summary>About</summary>
     <p>This tool checks whether a statement about the entropies of random
        variables is a theorem: whether it holds for <i>every</i> joint
        probability distribution of those variables. If it does, it
        shows a proof; if it cannot prove it, it says what assumptions
-       about the variables would make it provable.</p>
-
-    <h3>The quantities</h3>
-    <p>For random variables <i>X</i>, <i>Y</i>, <i>Z</i>, the
-       <b>entropy</b> H(X) measures the uncertainty in <i>X</i>, in bits;
-       H(X,Y) is the entropy of the pair taken together. The
-       <b>conditional entropy</b> H(X|Y) = H(X,Y) &minus; H(Y) is the
-       uncertainty left in <i>X</i> once <i>Y</i> is known. The
-       <b>mutual information</b> I(X;Y) = H(X) + H(Y) &minus; H(X,Y) is how
-       much knowing one tells you about the other, and the
-       <b>conditional mutual information</b> I(X;Y|Z) is the same once
-       <i>Z</i> is known. Every one of these is a linear combination of
-       joint entropies, so an <b>information inequality</b> such as
-       I(X;Y|Z) &le; I(X;Y) is a linear inequality in the joint entropies of
-       the subsets of the variables.</p>
-
-    <h3>Shannon-type inequalities</h3>
-    <p>Some inequalities hold for every distribution: entropy, conditional
-       entropy, mutual information and conditional mutual information are
-       never negative. These are the <b>basic inequalities</b>, and an
-       inequality that follows from them by adding non-negative multiples
-       is called <b>Shannon-type</b>. Most inequalities used in information
-       theory are of this kind: subadditivity H(X,Y) &le; H(X) + H(Y), the
-       data processing inequality for a Markov chain X&rarr;Y&rarr;Z, and so
-       on. Every basic inequality is in turn a sum of
-       <b>elemental</b> ones, H(X<sub>i</sub> | all the others) &ge; 0 and
-       I(X<sub>i</sub>;X<sub>j</sub>|X<sub>K</sub>) &ge; 0, of which there
-       are <i>n</i> + C(<i>n</i>,2)&middot;2<sup><i>n</i>&minus;2</sup> for
-       <i>n</i> variables.</p>
+       about the variables would make it provable. The ideas behind it are
+       explained under <i>Information Theory Foundations</i>.</p>
 
     <h3>How a statement is checked</h3>
     <p>Each joint entropy becomes an unknown of a linear program, one for
@@ -175,12 +246,11 @@
        values can always be approached by actual distributions, so FALSE
        means the statement really fails for some distribution. From four
        variables on, there are true inequalities that are not
-       Shannon-type, the first found by Zhang and Yeung:
-       2&nbsp;I(C;D) &le; I(A;B) + I(A;C,D) + 3&nbsp;I(C;D|A) + I(C;D|B).
-       The tool reports such an inequality as FALSE, because no Shannon-type
-       proof of it exists. So from four variables on, read FALSE as
-       &ldquo;not provable with Shannon-type reasoning&rdquo;, not as
-       &ldquo;false&rdquo;.</p>
+       Shannon-type, such as the Zhang&ndash;Yeung inequality
+       <a class="cite" href="#ref-4">[4]</a>, and the tool reports them as
+       FALSE because no Shannon-type proof exists. So from four variables
+       on, read FALSE as &ldquo;not provable with Shannon-type
+       reasoning&rdquo;, not as &ldquo;false&rdquo;.</p>
 
     <h3>Constraints</h3>
     <p>Lines after the first state what may be assumed: equalities or
@@ -221,16 +291,52 @@
 
     <h3>Background</h3>
     <p>The theoretical foundation of this kind of checker was developed by
-       Raymond W. Yeung, who showed that every information inequality is a
-       linear inequality in the joint entropies, and that whether it is
-       Shannon-type can be decided by linear programming (R.&nbsp;W.&nbsp;Yeung,
-       &ldquo;A framework for linear information inequalities,&rdquo;
-       <i>IEEE Transactions on Information Theory</i>, 1997).</p>
+       Raymond W. Yeung, who showed that whether an information inequality
+       is Shannon-type can be decided by linear programming
+       <a class="cite" href="#ref-3">[3]</a>.</p>
     <p>This tool is built on, and extends, two earlier provers based on that
-       framework: <a href="http://user-www.ie.cuhk.edu.hk/~ITIP/">ITIP</a>, by
-       R.&nbsp;W.&nbsp;Yeung and Ying-On Yan at the Chinese University of
-       Hong Kong, and <a href="http://xitip.epfl.ch/">Xitip</a>, by
-       R.&nbsp;Pulikkoonattu, E.&nbsp;Perron and S.&nbsp;Diggavi at EPFL.</p>
+       framework: <a href="http://user-www.ie.cuhk.edu.hk/~ITIP/">ITIP</a>
+       <a class="cite" href="#ref-8">[8]</a>, by R.&nbsp;W.&nbsp;Yeung and
+       Ying-On Yan at the Chinese University of Hong Kong, and
+       <a href="http://xitip.epfl.ch/">Xitip</a>
+       <a class="cite" href="#ref-9">[9]</a>, by R.&nbsp;Pulikkoonattu,
+       E.&nbsp;Perron and S.&nbsp;Diggavi at EPFL.</p>
+  </details>
+
+  <details id="references">
+    <summary>References</summary>
+    <ol class="refs">
+      <li id="ref-1">C.&nbsp;E. Shannon, &ldquo;A mathematical theory of
+        communication,&rdquo; <i>Bell System Technical Journal</i>, vol.&nbsp;27,
+        pp.&nbsp;379&ndash;423 and 623&ndash;656, July and Oct. 1948.
+        <a href="https://doi.org/10.1002/j.1538-7305.1948.tb01338.x">doi:10.1002/j.1538-7305.1948.tb01338.x</a></li>
+      <li id="ref-2">R.&nbsp;W. Yeung, &ldquo;A new outlook on Shannon&rsquo;s
+        information measures,&rdquo; <i>IEEE Transactions on Information
+        Theory</i>, vol.&nbsp;37, no.&nbsp;3, pp.&nbsp;466&ndash;474, May 1991.
+        <a href="https://doi.org/10.1109/18.79902">doi:10.1109/18.79902</a></li>
+      <li id="ref-3">R.&nbsp;W. Yeung, &ldquo;A framework for linear information
+        inequalities,&rdquo; <i>IEEE Transactions on Information Theory</i>,
+        vol.&nbsp;43, no.&nbsp;6, pp.&nbsp;1924&ndash;1934, Nov. 1997.
+        <a href="https://doi.org/10.1109/18.641556">doi:10.1109/18.641556</a></li>
+      <li id="ref-4">Z.&nbsp;Zhang and R.&nbsp;W. Yeung, &ldquo;On characterization
+        of entropy function via information inequalities,&rdquo; <i>IEEE
+        Transactions on Information Theory</i>, vol.&nbsp;44, no.&nbsp;4,
+        pp.&nbsp;1440&ndash;1452, July 1998.
+        <a href="https://doi.org/10.1109/18.681320">doi:10.1109/18.681320</a></li>
+      <li id="ref-5">R.&nbsp;W. Yeung, <i>A First Course in Information
+        Theory</i>. New York: Kluwer Academic/Plenum Publishers, 2002.</li>
+      <li id="ref-6">R.&nbsp;W. Yeung, <i>Information Theory and Network
+        Coding</i>. New York: Springer, 2008.
+        <a href="https://doi.org/10.1007/978-0-387-79234-7">doi:10.1007/978-0-387-79234-7</a></li>
+      <li id="ref-7">T.&nbsp;M. Cover and J.&nbsp;A. Thomas, <i>Elements of
+        Information Theory</i>, 2nd ed. Hoboken, NJ: Wiley-Interscience, 2006.</li>
+      <li id="ref-8">R.&nbsp;W. Yeung and Y.-O. Yan, <i>ITIP: Information
+        Theoretic Inequality Prover</i>, software, 1996.
+        <a href="http://user-www.ie.cuhk.edu.hk/~ITIP/">user-www.ie.cuhk.edu.hk/~ITIP</a></li>
+      <li id="ref-9">R.&nbsp;Pulikkoonattu, E.&nbsp;Perron and S.&nbsp;Diggavi,
+        <i>Xitip: Information Theoretic Inequalities Prover</i>, software,
+        EPFL. <a href="http://xitip.epfl.ch/">xitip.epfl.ch</a></li>
+    </ol>
   </details>
 
   <footer>&copy; 2020&ndash;2026 Nivedita Rethnakar, Suhas Diggavi,
@@ -370,7 +476,7 @@ function render(reply, nvars) {
   const vars = nvars > 0 ? ' <span class="meta">(' + nvars +
         (nvars === 1 ? " random variable" : " random variables") + ')</span>' : "";
   let html = '<div class="verdict ' + (yes ? "t" : "f") + '">' +
-             'The information expression is ' + (yes ? "TRUE" : "FALSE") +
+             'The information inequality is ' + (yes ? "TRUE" : "FALSE") +
              '.' + vars + '</div>';
   if (yes && body.trim()) html += "<pre></pre>";
   else if (!yes) html += '<p class="meta">Not provable from the basic inequalities. ' +
@@ -443,6 +549,11 @@ function render_conditions(reply) {
   }
   if (exhausted !== "1") note("The search stopped early; there may be more.");
 }
+
+document.addEventListener("click", e => {
+  const a = e.target.closest("a.cite");
+  if (a) $("references").open = true;
+});
 
 $("go").disabled = true;
 $("go").onclick = prove;

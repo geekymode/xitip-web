@@ -125,6 +125,20 @@ await check("NONE", 0, "H(X) <<< H(Y)");   // a syntax error shows a message, no
          `(running ${running}, cancelled ${cancelled}, restarted ${restarted}, proves after ${after})`);
 }
 
+// Foundations and References are on the page, and a citation opens the
+// collapsed references at the right entry.
+{
+  await load("");
+  const ok = await js(`!!document.getElementById("foundations") && !!document.getElementById("references")
+                       && document.querySelectorAll("ol.refs li").length === 9`);
+  await js(`document.getElementById("foundations").open = true;
+            document.querySelector('#foundations a.cite[href="#ref-3"]').click()`);
+  await sleep(300);
+  const opened = await js(`document.getElementById("references").open && location.hash === "#ref-3"`);
+  report(ok && opened, "foundations, references, and citations open them",
+         `(sections ${ok}, citation opens references ${opened})`);
+}
+
 // Help and About are on the page, with the credits.
 {
   const ok = await js(`!!document.getElementById("help") && !!document.getElementById("about")
