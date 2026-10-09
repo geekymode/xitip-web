@@ -1,7 +1,7 @@
 <!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>oXitip — information inequality prover</title>
+<title>Information Theoretic Inequalities: Check and Prove</title>
 <style>
   :root { color-scheme: light; --ink:#1b1d21; --dim:#5c6370; --line:#d9dde3;
           --true:#1f6f43; --false:#9b2c1f; --bg:#fbfbfa; --card:#fff; }
@@ -13,8 +13,10 @@
   body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.55
          system-ui,-apple-system,"Segoe UI",sans-serif; }
   .wrap { max-width: 820px; margin: 0 auto; padding: 32px 16px 64px; }
-  h1 { font-size: 1.5rem; margin: 0 0 4px; }
-  p.sub { color: var(--dim); margin: 0 0 24px; }
+  h1 { font: 700 clamp(1.6rem, 5.2vw, 2.2rem)/1.2 "Iowan Old Style",
+              "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+       letter-spacing: -.01em; margin: 0 0 6px; text-wrap: balance; }
+  p.sub { color: var(--dim); margin: 0 0 24px; font-size:.9rem; }
   textarea { width:100%; min-height:120px; padding:12px; border-radius:8px;
              border:1px solid var(--line); background:var(--card);
              color:var(--ink); font:14px/1.5 ui-monospace,Menlo,Consolas,monospace;
@@ -59,8 +61,8 @@
 </style>
 
 <div class="wrap">
-  <h1>oXitip</h1>
-  <p class="sub">Information Theoretic Inequalities: Proof Check<br><span style="font-size:.85rem">Runs entirely in your browser — nothing you type is sent anywhere.</span></p>
+  <h1>Information Theoretic Inequalities: Check and Prove</h1>
+  <p class="sub">Runs entirely in your browser — nothing you type is sent anywhere.</p>
 
   <textarea id="expr" spellcheck="false"
     placeholder="One statement, then any constraints, one per line:&#10;&#10;I(W;Z) &lt;= I(X;Y)&#10;W/X/Y/Z"></textarea>
@@ -119,10 +121,10 @@
 
   <details id="about">
     <summary>About</summary>
-    <p>oXitip checks whether a statement about the entropies of random
+    <p>This tool checks whether a statement about the entropies of random
        variables is a theorem: whether it holds for <i>every</i> joint
-       probability distribution of those variables. If it does, oXitip
-       shows a proof; if it cannot prove it, oXitip says what assumptions
+       probability distribution of those variables. If it does, it
+       shows a proof; if it cannot prove it, it says what assumptions
        about the variables would make it provable.</p>
 
     <h3>The quantities</h3>
@@ -175,7 +177,7 @@
        variables on, there are true inequalities that are not
        Shannon-type, the first found by Zhang and Yeung:
        2&nbsp;I(C;D) &le; I(A;B) + I(A;C,D) + 3&nbsp;I(C;D|A) + I(C;D|B).
-       oXitip reports such an inequality as FALSE, because no Shannon-type
+       The tool reports such an inequality as FALSE, because no Shannon-type
        proof of it exists. So from four variables on, read FALSE as
        &ldquo;not provable with Shannon-type reasoning&rdquo;, not as
        &ldquo;false&rdquo;.</p>
@@ -189,7 +191,7 @@
        checked over the distributions that meet them.</p>
 
     <h3>Suggested conditions</h3>
-    <p>When a statement is not provable, oXitip searches for the smallest
+    <p>When a statement is not provable, the tool searches for the smallest
        sets of assumptions under which it would be. Each candidate
        assumption sets one elemental quantity to zero, which reads as a
        condition you might state about a model: two variables are
@@ -204,7 +206,7 @@
        showing that no code can do better than a stated rate in channel
        coding, source coding, network coding, secret sharing or
        distributed storage. Checking them by hand is slow and error-prone
-       once there are more than a few variables. oXitip checks such steps
+       once there are more than a few variables. This tool checks such steps
        mechanically, shows the chain of basic inequalities behind each
        one, and helps find the independence or Markov assumptions a step
        silently relies on.</p>
@@ -218,7 +220,7 @@
        nothing you type is sent to a server.</p>
   </details>
 
-  <footer>&copy; 2020&ndash;2026 oXitip &middot; Nivedita Rethnakar, Suhas Diggavi,
+  <footer>&copy; 2020&ndash;2026 Nivedita Rethnakar, Suhas Diggavi,
     Thomas Gläßle, Etienne Perron, Rethna Pulikkoonattu, Raymond W. Yeung,
     Ying-On Yan</footer>
 </div>
