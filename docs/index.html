@@ -15,7 +15,7 @@
   .wrap { max-width: 820px; margin: 0 auto; padding: 32px 16px 64px; }
   h1 { font: 700 clamp(1.6rem, 5.2vw, 2.2rem)/1.2 "Iowan Old Style",
               "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
-       letter-spacing: -.01em; margin: 0 0 6px; text-wrap: balance; }
+       letter-spacing: -.01em; margin: 0 0 24px; text-wrap: balance; }
   p.sub { color: var(--dim); margin: 0 0 24px; font-size:.9rem; }
   textarea { width:100%; min-height:120px; padding:12px; border-radius:8px;
              border:1px solid var(--line); background:var(--card);
@@ -45,7 +45,13 @@
   details td { padding:4px 14px 4px 0; vertical-align:top; }
   details code, details td:first-child { font:13px/1.5 ui-monospace,Menlo,Consolas,monospace; }
   details p { margin:10px 0; }
-  details h3 { font-size:.95rem; margin:18px 0 4px; }
+  details h3 { font: 600 1.12rem/1.3 "Iowan Old Style", "Palatino Linotype",
+                Palatino, "Book Antiqua", Georgia, serif;
+               margin:26px 0 6px; }
+  .katex-display { margin:.7em 0; overflow-x:auto; overflow-y:hidden;
+                   padding:2px 0; }
+  .katex { font-size:1.08em; }
+  @media (max-width: 600px) { .katex-display > .katex { font-size:.86em; } }
   a.cite { text-decoration:none; font-size:.85em; }
   ol.refs { padding-left:1.6em; font-size:.9rem; }
   ol.refs li { margin:6px 0; scroll-margin-top:16px; }
@@ -64,10 +70,15 @@
                font:13px/1.4 ui-monospace,Menlo,Consolas,monospace;
                padding:6px 10px; margin:0 6px 6px 0; }
 </style>
+<link rel="stylesheet" href="katex/katex.min.css">
+<script defer src="katex/katex.min.js"></script>
+<script defer src="katex/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body, {delimiters: [
+    {left: '\\[', right: '\\]', display: true},
+    {left: '\\(', right: '\\)', display: false}]})"></script>
 
 <div class="wrap">
   <h1>Information Theoretic Inequalities: Check and Prove</h1>
-  <p class="sub">Runs entirely in your browser — nothing you type is sent anywhere.</p>
 
   <textarea id="expr" spellcheck="false"
     placeholder="One statement, then any constraints, one per line:&#10;&#10;I(W;Z) &lt;= I(X;Y)&#10;W/X/Y/Z"></textarea>
@@ -127,94 +138,115 @@
   <details id="foundations">
     <summary>Information Theory Foundations</summary>
 
-    <h3>Entropy</h3>
-    <p>The <b>entropy</b> of a discrete random variable <i>X</i> with
-       distribution <i>p</i>(<i>x</i>) is
-       H(X) = &minus;&sum;<sub><i>x</i></sub> <i>p</i>(<i>x</i>) log<sub>2</sub> <i>p</i>(<i>x</i>),
-       the average number of bits needed to describe <i>X</i>, or
-       equivalently the uncertainty about <i>X</i> before it is observed
-       <a class="cite" href="#ref-1">[1]</a>. It is zero exactly when
-       <i>X</i> is a constant. The <b>joint entropy</b> H(X,Y) is the entropy
-       of the pair (<i>X</i>,<i>Y</i>) taken as one variable, and the
-       <b>conditional entropy</b> H(X|Y) = H(X,Y) &minus; H(Y) is the
-       uncertainty left in <i>X</i> once <i>Y</i> is known. They are tied
-       together by the <b>chain rule</b> H(X,Y) = H(Y) + H(X|Y), and
-       H(X|Y) = 0 exactly when <i>X</i> is a function of <i>Y</i>.</p>
+    <h3>1&ensp;Entropy and Conditional Entropy</h3>
+    <p>The <b>entropy</b> of a discrete random variable \(X\) with
+       distribution \(p(x)\) is</p>
+    \[ H(X) \;=\; -\sum_{x} p(x)\,\log_2 p(x), \]
+    <p>the average number of bits needed to describe \(X\), or equivalently
+       the uncertainty about \(X\) before it is observed
+       <a class="cite" href="#ref-1">[1]</a>. It satisfies \(H(X) \ge 0\),
+       with equality exactly when \(X\) is a constant. The <b>joint
+       entropy</b> of a pair is the entropy of the pair taken as one
+       variable, and the <b>conditional entropy</b> is what is left of one
+       once the other is known:</p>
+    \[ H(X,Y) = -\sum_{x,y} p(x,y)\log_2 p(x,y), \qquad
+       H(X \mid Y) = H(X,Y) - H(Y). \]
+    <p>They are tied together by the <b>chain rule</b></p>
+    \[ H(X_1,\dots,X_n) \;=\; \sum_{i=1}^{n} H(X_i \mid X_1,\dots,X_{i-1}), \]
+    <p>and \(H(X \mid Y) = 0\) exactly when \(X\) is a function of \(Y\).</p>
 
-    <h3>Mutual information</h3>
-    <p>The <b>mutual information</b>
-       I(X;Y) = H(X) + H(Y) &minus; H(X,Y) = H(X) &minus; H(X|Y)
-       is the reduction in uncertainty about <i>X</i> from learning
-       <i>Y</i>, and it is symmetric. It is zero exactly when <i>X</i> and
-       <i>Y</i> are independent. The <b>conditional mutual information</b>
-       I(X;Y|Z) = H(X,Z) + H(Y,Z) &minus; H(X,Y,Z) &minus; H(Z) is the same
-       quantity once <i>Z</i> is known; it is zero exactly when <i>X</i> and
-       <i>Y</i> are conditionally independent given <i>Z</i>, that is, when
-       <i>X</i>&nbsp;&rarr;&nbsp;<i>Z</i>&nbsp;&rarr;&nbsp;<i>Y</i> is a
-       Markov chain. These four kinds of quantity are <b>Shannon's
-       information measures</b>
+    <h3>2&ensp;Mutual Information</h3>
+    <p>The <b>mutual information</b> between \(X\) and \(Y\) is the
+       reduction in uncertainty about one from learning the other:</p>
+    \[ I(X;Y) \;=\; \sum_{x,y} p(x,y)\log_2\frac{p(x,y)}{p(x)\,p(y)}
+       \;=\; H(X) + H(Y) - H(X,Y) \;=\; H(X) - H(X \mid Y). \]
+    <p>It is symmetric, and \(I(X;Y) = 0\) exactly when \(X\) and \(Y\) are
+       independent. The <b>conditional mutual information</b> given \(Z\)
+       is</p>
+    \[ I(X;Y \mid Z) \;=\; H(X,Z) + H(Y,Z) - H(X,Y,Z) - H(Z), \]
+    <p>and \(I(X;Y \mid Z) = 0\) exactly when \(X\) and \(Y\) are
+       conditionally independent given \(Z\), that is, when
+       \({X \to Z \to Y}\) is a Markov chain. Entropy, conditional entropy,
+       mutual information and conditional mutual information are
+       <b>Shannon&rsquo;s information measures</b>
        <a class="cite" href="#ref-1">[1]</a><a class="cite" href="#ref-7">[7]</a>.</p>
 
-    <h3>The I-Measure</h3>
-    <p>Yeung showed that Shannon's information measures behave like a
-       measure on sets <a class="cite" href="#ref-2">[2]</a>: associate a
-       set with each random variable, and entropy, conditional entropy and
-       mutual information become the measures of unions, differences and
-       intersections of those sets. This <b>I-Measure</b> makes
-       <b>information diagrams</b>, Venn diagrams for random variables,
-       exact rather than just a mnemonic. It also explains quantities such
-       as I(X;Y;Z), the measure of the common part of three sets, which
-       unlike the others can be negative.</p>
+    <h3>3&ensp;The I-Measure and Information Diagrams</h3>
+    <p>Yeung showed that Shannon&rsquo;s information measures form a signed
+       measure \(\mu^*\) on sets <a class="cite" href="#ref-2">[2]</a>.
+       Associate a set \(\tilde X\) with each random variable \(X\); then</p>
+    \[ \begin{aligned}
+         \mu^*(\tilde X \cup \tilde Y) &= H(X,Y), &\qquad
+         \mu^*(\tilde X - \tilde Y) &= H(X \mid Y), \\
+         \mu^*(\tilde X \cap \tilde Y) &= I(X;Y), &\qquad
+         \mu^*\big((\tilde X \cap \tilde Y) - \tilde Z\big) &= I(X;Y \mid Z).
+       \end{aligned} \]
+    <p>This <b>I-Measure</b> makes <b>information diagrams</b>, Venn
+       diagrams for random variables, exact rather than only a mnemonic.
+       It also gives meaning to the measure of the common part of three
+       sets,</p>
+    \[ I(X;Y;Z) \;=\; \mu^*(\tilde X \cap \tilde Y \cap \tilde Z)
+       \;=\; I(X;Y) - I(X;Y \mid Z), \]
+    <p>which, unlike the other measures, can be negative.</p>
 
-    <h3>Entropy vectors and the entropic region</h3>
-    <p>For <i>n</i> random variables, list the joint entropies of all
-       2<sup><i>n</i></sup>&nbsp;&minus;&nbsp;1 non-empty subsets of them.
-       This is the <b>entropy vector</b> <b>h</b> of their joint
-       distribution. Every information measure is a linear function of
-       <b>h</b>, so every <b>linear information inequality</b>, such as
-       I(X;Y|Z) &le; I(X;Y), says that a linear function of <b>h</b> is
-       non-negative. Let &Gamma;<sub><i>n</i></sub><sup>*</sup> be the set
-       of all entropy vectors that some joint distribution actually has,
-       the <b>entropic region</b>. An inequality is a theorem of information
-       theory exactly when it holds at every point of
-       &Gamma;<sub><i>n</i></sub><sup>*</sup>.</p>
+    <h3>4&ensp;Entropy Vectors and the Entropic Region</h3>
+    <p>For random variables \(X_1,\dots,X_n\) with index set
+       \(\mathcal N = \{1,\dots,n\}\), write \(X_\alpha\) for the
+       variables indexed by \(\alpha \subseteq \mathcal N\). The
+       <b>entropy vector</b> of their joint distribution lists the joint
+       entropies of all non-empty subsets:</p>
+    \[ \mathbf h = \big(H(X_\alpha)\big)_{\emptyset \ne \alpha \subseteq \mathcal N}
+       \;\in\; \mathbb R^{2^n - 1}. \]
+    <p>Every information measure is a linear function of \(\mathbf h\), so
+       a <b>linear information inequality</b> has the form
+       \(\mathbf b^{\top}\mathbf h \ge 0\). Let \(\Gamma_n^*\) be the set of
+       all vectors that are the entropy vector of some distribution, the
+       <b>entropic region</b>. The inequality is a theorem of information
+       theory exactly when</p>
+    \[ \Gamma_n^* \;\subseteq\; \{\mathbf h : \mathbf b^{\top}\mathbf h \ge 0\}. \]
 
-    <h3>Yeung's framework: Shannon-type inequalities</h3>
-    <p>The <b>basic inequalities</b> say that all of Shannon's information
-       measures are non-negative. Each of them is a linear inequality in
-       <b>h</b>, so together they cut out a polyhedral cone
-       &Gamma;<sub><i>n</i></sub> that contains
-       &Gamma;<sub><i>n</i></sub><sup>*</sup>. Yeung's framework
-       <a class="cite" href="#ref-3">[3]</a> makes this the basis of a
-       decision procedure. An inequality is <b>Shannon-type</b> if it holds
-       on all of &Gamma;<sub><i>n</i></sub>, which is the same as saying it
-       is a non-negative combination of basic inequalities, and whether
-       that is so can be decided by <b>linear programming</b>. The basic
-       inequalities are themselves sums of a minimal set of
-       <b>elemental inequalities</b>, H(X<sub><i>i</i></sub> | all the other
-       variables) &ge; 0 and
-       I(X<sub><i>i</i></sub>;X<sub><i>j</i></sub>|X<sub><i>K</i></sub>) &ge; 0,
-       of which there are
-       <i>n</i>&nbsp;+&nbsp;C(<i>n</i>,2)&middot;2<sup><i>n</i>&minus;2</sup>,
-       so the linear program only needs those. Constraints such as
-       independence or Markov conditions are linear in <b>h</b> too, which
-       is how constrained inequalities are checked the same way. This
-       framework, developed in Yeung's books
+    <h3>5&ensp;Shannon-Type Inequalities: Yeung&rsquo;s Framework</h3>
+    <p>The <b>basic inequalities</b> state that every Shannon information
+       measure is non-negative:</p>
+    \[ H(X) \ge 0, \qquad H(X \mid Y) \ge 0, \qquad I(X;Y) \ge 0,
+       \qquad I(X;Y \mid Z) \ge 0. \]
+    <p>Each is linear in \(\mathbf h\), so together they define a polyhedral
+       cone \(\Gamma_n \supseteq \Gamma_n^*\). Yeung&rsquo;s framework
+       <a class="cite" href="#ref-3">[3]</a> calls an inequality
+       <b>Shannon-type</b> if</p>
+    \[ \Gamma_n \;\subseteq\; \{\mathbf h : \mathbf b^{\top}\mathbf h \ge 0\}, \]
+    <p>equivalently, if it is a non-negative combination of basic
+       inequalities, and shows that this is decided by the <b>linear
+       program</b></p>
+    \[ \min_{\mathbf h \in \Gamma_n}\; \mathbf b^{\top}\mathbf h, \]
+    <p>whose minimum is \(0\) if the inequality is Shannon-type and
+       \(-\infty\) otherwise. The cone needs only the <b>elemental
+       inequalities</b>, a minimal set from which every basic inequality
+       follows:</p>
+    \[ H(X_i \mid X_{\mathcal N - \{i\}}) \ge 0, \qquad
+       I(X_i ; X_j \mid X_K) \ge 0 \quad
+       (i \ne j,\; K \subseteq \mathcal N - \{i,j\}), \]
+    <p>of which there are \(n + \binom{n}{2}\,2^{\,n-2}\). Constraints such
+       as independence or Markov conditions are linear in \(\mathbf h\)
+       too, so a constrained inequality is checked the same way over
+       \(\Gamma_n\) intersected with the constraint set. This framework,
+       developed in Yeung&rsquo;s books
        <a class="cite" href="#ref-5">[5]</a><a class="cite" href="#ref-6">[6]</a>,
        is what ITIP <a class="cite" href="#ref-8">[8]</a>, Xitip
        <a class="cite" href="#ref-9">[9]</a> and this tool implement.</p>
 
-    <h3>Beyond Shannon-type</h3>
-    <p>For three variables, &Gamma;<sub>3</sub> is the closure of
-       &Gamma;<sub>3</sub><sup>*</sup>, so every valid unconstrained
-       inequality in three variables is Shannon-type. For four or more it is
-       not: Zhang and Yeung found the first <b>non-Shannon-type
-       inequality</b> <a class="cite" href="#ref-4">[4]</a>,
-       2&nbsp;I(C;D) &le; I(A;B) + I(A;C,D) + 3&nbsp;I(C;D|A) + I(C;D|B),
-       which holds for every distribution but cannot be derived from the
+    <h3>6&ensp;Non-Shannon-Type Inequalities</h3>
+    <p>For three variables the basic inequalities are the whole story:
+       \(\overline{\Gamma_3^*} = \Gamma_3\), so every valid unconstrained
+       inequality in three variables is Shannon-type. For four or more they
+       are not: \(\overline{\Gamma_4^*} \subsetneq \Gamma_4\), and Zhang and
+       Yeung found the first <b>non-Shannon-type inequality</b>
+       <a class="cite" href="#ref-4">[4]</a>,</p>
+    \[ 2\,I(C;D) \;\le\; I(A;B) + I(A;C,D) + 3\,I(C;D \mid A) + I(C;D \mid B), \]
+    <p>which holds for every distribution but cannot be derived from the
        basic inequalities. So when this tool answers TRUE the statement is
        a theorem, and when it answers FALSE for four or more variables the
-       statement may still be a theorem, just not a Shannon-type one.</p>
+       statement may still be a theorem, only not a Shannon-type one.</p>
   </details>
 
   <details id="about">
@@ -282,10 +314,10 @@
        silently relies on.</p>
 
     <h3>Limits</h3>
-    <p>The linear program has 2<sup><i>n</i></sup> &minus; 1 unknowns and
-       about <i>n</i><sup>2</sup>2<sup><i>n</i></sup>/8 constraints, so the
-       work grows quickly with the number of variables <i>n</i>: up to
-       about 8 is quick, and beyond 10 is impractical. The prover is
+    <p>For \(n\) variables the linear program has \(2^n - 1\) unknowns and
+       \(n + \binom{n}{2}\,2^{\,n-2} \approx n^2 2^n/8\) constraints, so the
+       work grows quickly with \(n\): up to about 8 variables is quick,
+       and beyond 10 is impractical. The prover is
        compiled to WebAssembly and runs in this page, on your computer;
        nothing you type is sent to a server.</p>
 
