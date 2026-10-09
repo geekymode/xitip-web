@@ -43,6 +43,7 @@
   details td { padding:4px 14px 4px 0; vertical-align:top; }
   details code, details td:first-child { font:13px/1.5 ui-monospace,Menlo,Consolas,monospace; }
   details p { margin:10px 0; }
+  details h3 { font-size:.95rem; margin:18px 0 4px; }
   a { color:#2f6feb; }
   .conds h3 { font-size:1rem; margin:22px 0 4px; }
   .cond { border:1px solid var(--line); border-radius:8px; background:var(--card);
@@ -118,14 +119,103 @@
 
   <details id="about">
     <summary>About</summary>
-    <p>oXitip is an information-theoretic inequality prover. It compiles the
-       C++ prover to WebAssembly, so the whole computation runs on your
-       computer, in this page, and nothing you type is sent to a server.</p>
-    <p>It descends from <a href="http://user-www.ie.cuhk.edu.hk/~ITIP/">ITIP</a>
-       by Raymond W. Yeung and Ying-On Yan, through
-       <a href="http://xitip.epfl.ch/">Xitip</a> by Rethnakaran Pulikkoonattu,
-       Etienne Perron and Suhas Diggavi, and Citip, the C++ command-line fork
-       by Thomas Gläßle.</p>
+    <p>oXitip checks whether a statement about the entropies of random
+       variables is a theorem: whether it holds for <i>every</i> joint
+       probability distribution of those variables. If it does, oXitip
+       shows a proof; if it cannot prove it, oXitip says what assumptions
+       about the variables would make it provable.</p>
+
+    <h3>The quantities</h3>
+    <p>For random variables <i>X</i>, <i>Y</i>, <i>Z</i>, the
+       <b>entropy</b> H(X) measures the uncertainty in <i>X</i>, in bits;
+       H(X,Y) is the entropy of the pair taken together. The
+       <b>conditional entropy</b> H(X|Y) = H(X,Y) &minus; H(Y) is the
+       uncertainty left in <i>X</i> once <i>Y</i> is known. The
+       <b>mutual information</b> I(X;Y) = H(X) + H(Y) &minus; H(X,Y) is how
+       much knowing one tells you about the other, and the
+       <b>conditional mutual information</b> I(X;Y|Z) is the same once
+       <i>Z</i> is known. Every one of these is a linear combination of
+       joint entropies, so an <b>information inequality</b> such as
+       I(X;Y|Z) &le; I(X;Y) is a linear inequality in the joint entropies of
+       the subsets of the variables.</p>
+
+    <h3>Shannon-type inequalities</h3>
+    <p>Some inequalities hold for every distribution: entropy, conditional
+       entropy, mutual information and conditional mutual information are
+       never negative. These are the <b>basic inequalities</b>, and an
+       inequality that follows from them by adding non-negative multiples
+       is called <b>Shannon-type</b>. Most inequalities used in information
+       theory are of this kind: subadditivity H(X,Y) &le; H(X) + H(Y), the
+       data processing inequality for a Markov chain X&rarr;Y&rarr;Z, and so
+       on. Every basic inequality is in turn a sum of
+       <b>elemental</b> ones, H(X<sub>i</sub> | all the others) &ge; 0 and
+       I(X<sub>i</sub>;X<sub>j</sub>|X<sub>K</sub>) &ge; 0, of which there
+       are <i>n</i> + C(<i>n</i>,2)&middot;2<sup><i>n</i>&minus;2</sup> for
+       <i>n</i> variables.</p>
+
+    <h3>How a statement is checked</h3>
+    <p>Each joint entropy becomes an unknown of a linear program, one for
+       every non-empty subset of the variables, and the elemental
+       inequalities and your constraints become its constraints. The
+       program minimises the left-hand side minus the right-hand side of
+       your statement. If the minimum is not negative, the statement
+       follows from the basic inequalities and is <b>TRUE</b>; the
+       multipliers of the linear program's dual solution then say exactly
+       which elemental inequalities, each with what weight, add up to it,
+       and that sum is the proof shown. The proof is checked by adding it
+       back up before it is printed.</p>
+
+    <h3>What FALSE means</h3>
+    <p>FALSE means the statement does not follow from the basic
+       inequalities and the constraints. The linear program has found
+       values of the joint entropies that satisfy all of them and violate
+       the statement. For up to three variables and no constraints, such
+       values can always be approached by actual distributions, so FALSE
+       means the statement really fails for some distribution. From four
+       variables on, there are true inequalities that are not
+       Shannon-type, the first found by Zhang and Yeung:
+       2&nbsp;I(C;D) &le; I(A;B) + I(A;C,D) + 3&nbsp;I(C;D|A) + I(C;D|B).
+       oXitip reports such an inequality as FALSE, because no Shannon-type
+       proof of it exists. So from four variables on, read FALSE as
+       &ldquo;not provable with Shannon-type reasoning&rdquo;, not as
+       &ldquo;false&rdquo;.</p>
+
+    <h3>Constraints</h3>
+    <p>Lines after the first state what may be assumed: equalities or
+       inequalities among the same quantities, or the structural
+       shorthands X/Y/Z (a Markov chain: X and Z are independent given Y),
+       X.Y.Z (mutual independence) and X:Y (X is a function of Y). Each is
+       turned into the linear relations it implies, so the statement is
+       checked over the distributions that meet them.</p>
+
+    <h3>Suggested conditions</h3>
+    <p>When a statement is not provable, oXitip searches for the smallest
+       sets of assumptions under which it would be. Each candidate
+       assumption sets one elemental quantity to zero, which reads as a
+       condition you might state about a model: two variables are
+       independent, conditionally independent given others, or one is a
+       function of the rest. Single assumptions are tried first, then
+       pairs, and a set is listed only if no smaller set inside it already
+       works. A counterexample prunes the search, since setting a quantity
+       to zero cannot help if it is already zero there.</p>
+
+    <h3>What it is for</h3>
+    <p>Information inequalities are the working tools of converse proofs:
+       showing that no code can do better than a stated rate in channel
+       coding, source coding, network coding, secret sharing or
+       distributed storage. Checking them by hand is slow and error-prone
+       once there are more than a few variables. oXitip checks such steps
+       mechanically, shows the chain of basic inequalities behind each
+       one, and helps find the independence or Markov assumptions a step
+       silently relies on.</p>
+
+    <h3>Limits</h3>
+    <p>The linear program has 2<sup><i>n</i></sup> &minus; 1 unknowns and
+       about <i>n</i><sup>2</sup>2<sup><i>n</i></sup>/8 constraints, so the
+       work grows quickly with the number of variables <i>n</i>: up to
+       about 8 is quick, and beyond 10 is impractical. The prover is
+       compiled to WebAssembly and runs in this page, on your computer;
+       nothing you type is sent to a server.</p>
   </details>
 
   <footer>&copy; 2020&ndash;2026 oXitip &middot; Nivedita Rethnakar, Suhas Diggavi,
