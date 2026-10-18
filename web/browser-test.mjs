@@ -91,6 +91,20 @@ await check("TRUE", 1, "2 H(X,Y,Z) <= H(X,Y) + H(Y,Z) + H(X,Z)");
 await check("TRUE", 1, "H(X) <= H(Y)\nX:Y");
 await check("NONE", 0, "H(X) <<< H(Y)");   // a syntax error shows a message, not a verdict
 
+// Non-Shannon-type: TRUE, marked as such, with the inequality it rests on
+// named and linked to its paper and to the page's references.
+{
+  await load("2 I(C;D) <= I(A;B) + I(A;C,D) + 3 I(C;D|A) + I(C;D|B)");
+  await until(`${verdict} || document.querySelector("#out .err")`);
+  const got = await js(verdict);
+  const named = await js(`[...document.querySelectorAll("#out .nonshannon li")].map(li => li.textContent).join(" | ")`);
+  const links = await js(`[...document.querySelectorAll("#out .nonshannon li a")].map(a => a.getAttribute("href")).join(" ")`);
+  const proof = await js(`document.querySelector("#out pre")?.textContent.includes("N1") || false`);
+  const ok = got === "TRUE" && named.includes("Zhang–Yeung inequality (1998)")
+          && links.includes("https://doi.org/10.1109/18.681320") && links.includes("#ref-4") && proof;
+  report(ok, "non-Shannon-type: Zhang–Yeung", ok ? "TRUE, named and linked" : `(verdict ${got}, ${named}, ${links}, proof ${proof})`);
+}
+
 // Not provable: the page suggests conditions, and proving with one of them
 // comes back TRUE, with the assumption added to the constraints.
 {

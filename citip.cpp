@@ -1,6 +1,8 @@
 #include <cmath>        // fabs, floor
 #include <math.h>       // NAN, fabs
-#include <algorithm>    // max
+#include <algorithm>    // max, sort
+#include <array>        // array
+#include <set>          // set
 #include <utility>      // move
 #include <sstream>      // istringstream
 #include <stdexcept>    // runtime_error
@@ -11,6 +13,7 @@
 #include "parser.hxx"
 #include "scanner.hpp"
 #include "common.hpp"
+#include "known_inequalities.hpp"
 
 using std::move;
 using util::sprint_all;
@@ -547,6 +550,7 @@ static bool extract_proof(glp_prob* lp, const SparseVector& v,
                           const std::vector<std::string>& vars,
                           const std::vector<RowInfo>& info,
                           const std::vector<std::string>& ctext,
+                          const std::vector<std::string>& ktext,
                           Proof& proof)
 {
     const double eps = 1e-9;
@@ -604,6 +608,13 @@ static bool extract_proof(glp_prob* lp, const SparseVector& v,
         } else if (what.kind == RowInfo::MUTINF) {
             term.name = "I(" + vars[what.a] + ";" + vars[what.b]
                       + (what.K ? "|" + set_name(what.K, vars) : "") + ")";
+        } else if (what.kind == RowInfo::KNOWN) {
+            // an instance of a known non-Shannon-type inequality, which is
+            // clearer written with the information quantities it was
+            // stated in than as joint entropies
+            term.name = "N" + std::to_string(what.index);
+            if (what.index >= 1 && (size_t) what.index <= ktext.size())
+                term.source = ktext[what.index - 1];
         } else {
             term.name = "C" + std::to_string(what.index);
             term.source = "from constraint " + std::to_string(what.index);
@@ -689,7 +700,7 @@ bool LinearProblem::check(const SparseVector& v, Proof* proof,
         bool valid = glp_get_obj_val(lp) + v.get(0) >= -tolerance(v);
         if (valid && proof && vars) {
             if (!extract_proof(lp, v, *vars, row_info, constraint_text,
-                               *proof))
+                               known_text, *proof))
                 proof->expression.clear();      // no proof we can stand by
         }
         return valid;
@@ -760,6 +771,62 @@ bool LinearProblem::counterexample(const SparseVector& v,
 }
 
 
+// As counterexample(), but reading off the columns: the joint entropies.
+bool LinearProblem::point_below(const SparseVector& v, std::vector<double>* h)
+{
+    SparseVector bound(v);
+    bound.is_equality = false;
+    bound.entries.erase(0);
+    double lowest = -(fabs(v.get(0)) + 1);
+    bound.inc(0, -lowest);
+    add(bound);
+    int extra = glp_get_num_rows(lp);
+
+    glp_smcp parm;
+    glp_init_smcp(&parm);
+    parm.msg_lev = GLP_MSG_OFF;
+    int num_cols = glp_get_num_cols(lp);
+    for (int i = 1; i <= num_cols; ++i)
+        glp_set_obj_coef(lp, i, v.get(i));
+
+    bool found = glp_simplex(lp, &parm) == 0
+              && glp_get_status(lp) == GLP_OPT
+              && glp_get_obj_val(lp) + v.get(0) < -tolerance(v);
+    if (found && h) {
+        h->assign(num_cols + 1, 0.0);
+        for (int c = 1; c <= num_cols; ++c)
+            (*h)[c] = glp_get_col_prim(lp, c);
+    }
+    int rows[2] = {0, extra};
+    glp_del_rows(lp, 1, rows);
+    glp_std_basis(lp);
+    return found;
+}
+
+
+void LinearProblem::add_known(const SparseVector& v, const std::string& text,
+                              int family)
+{
+    add(v);
+    known_text.push_back(text);
+    known_family.push_back(family);
+    row_info.push_back({RowInfo::KNOWN, 0, 0, 0, 0, (int) known_text.size()});
+}
+
+
+std::vector<int> LinearProblem::known_families_used()
+{
+    std::set<int> used;
+    for (size_t r = 0; r < row_info.size(); ++r) {
+        if (row_info[r].kind != RowInfo::KNOWN)
+            continue;
+        if (std::fabs(glp_get_row_dual(lp, (int) r + 1)) > 1e-9)
+            used.insert(known_family[row_info[r].index - 1]);
+    }
+    return std::vector<int>(used.begin(), used.end());
+}
+
+
 ShannonTypeProblem::ShannonTypeProblem(int num_vars)
     : LinearProblem()
 {
@@ -772,6 +839,351 @@ ShannonTypeProblem::ShannonTypeProblem(int num_vars)
     add_columns((1<<num_vars) - 1);
     add_elemental_inequalities(lp, num_vars, &row_info);
 }
+
+
+//----------------------------------------
+// Known non-Shannon-type inequalities
+//----------------------------------------
+//
+// A statement that does not follow from the basic inequalities may still be
+// a theorem, because it follows from inequalities that are not Shannon-type.
+// The ones below are all on four variables A, B, C, D. Each family is
+// applied to the problem's variables in every order (A, B, C, D standing for
+// four distinct single variables), and because that is a lot of rows, they
+// are added only as needed: find a point of the current region where the
+// statement fails, add the instances that point violates most, and solve
+// again, until either the statement is proved or the point violates none of
+// them, in which case these inequalities do not prove it either.
+
+namespace {
+
+// c * I(X;Y|Z), with X, Y, Z sets of the formal variables A=1, B=2, C=4, D=8
+struct Quantity { double c; int X, Y, Z; };
+
+const int A_ = 1, B_ = 2, C_ = 4, D_ = 8;
+
+struct Family
+{
+    std::string name, reference, url, anchor;
+    std::vector<Quantity> terms;        // sum of the terms >= 0
+    std::vector<Quantity> conditions;   // must each be implied = 0, if any
+};
+
+// a I(A;B) <= b I(A;B|C) + c I(A;C|B) + d I(B;C|A) + e I(A;B|D)
+//           + f I(A;D|B) + g I(B;D|A) + h I(C;D) + i I(C;D|A)
+std::vector<Quantity> from_template(const int k[9])
+{
+    std::vector<Quantity> t = {
+        {-(double) k[0], A_, B_, 0},
+        {(double) k[1], A_, B_, C_}, {(double) k[2], A_, C_, B_},
+        {(double) k[3], B_, C_, A_}, {(double) k[4], A_, B_, D_},
+        {(double) k[5], A_, D_, B_}, {(double) k[6], B_, D_, A_},
+        {(double) k[7], C_, D_, 0},  {(double) k[8], C_, D_, A_},
+    };
+    std::vector<Quantity> out;
+    for (auto&& q : t)
+        if (q.c != 0)
+            out.push_back(q);
+    return out;
+}
+
+const std::vector<Family>& known_families()
+{
+    static std::vector<Family> all;
+    if (!all.empty())
+        return all;
+
+    all.push_back({"Zhang–Yeung conditional inequality (1997)",
+        "Z. Zhang and R. W. Yeung, “A non-Shannon-type conditional "
+        "inequality of information quantities,” IEEE Transactions on "
+        "Information Theory, vol. 43, no. 6, 1997",
+        "https://doi.org/10.1109/18.641561", "ref-10",
+        {{1, C_, D_, A_}, {1, C_, D_, B_}, {-1, C_, D_, 0}},
+        {{1, A_, B_, 0}, {1, A_, B_, C_}}});
+
+    all.push_back({"Zhang–Yeung inequality (1998)",
+        "Z. Zhang and R. W. Yeung, “On characterization of entropy "
+        "function via information inequalities,” IEEE Transactions on "
+        "Information Theory, vol. 44, no. 4, 1998",
+        "https://doi.org/10.1109/18.681320", "ref-4",
+        {{1, A_, B_, 0}, {1, A_, C_|D_, 0}, {3, C_, D_, A_},
+         {1, C_, D_, B_}, {-2, C_, D_, 0}}, {}});
+
+    // Matus's first family; s = 1 is Zhang-Yeung again
+    for (int s = 2; s <= 8; ++s) {
+        int k[9] = {s, s*(s+3)/2, s*(s+1)/2, 1, s, 0, 0, s, 0};
+        all.push_back({"Matúš’s inequality with s = "
+                + std::to_string(s) + " (2007)",
+            "F. Matúš, “Infinitely many information "
+            "inequalities,” Proc. IEEE ISIT 2007, pp. 41–44",
+            "https://intranet.utia.cas.cz/biblio/pub/0085052", "ref-14",
+            from_template(k), {}});
+    }
+
+    for (int n = 0; n < NUM_DFZ_INEQUALITIES; ++n) {
+        all.push_back({"Dougherty–Freiling–Zeger inequality no. "
+                + std::to_string(n + 1) + " (2011)",
+            "R. Dougherty, C. Freiling and K. Zeger, “Non-Shannon "
+            "information inequalities in four random variables,” "
+            "arXiv:1104.3602, 2011",
+            "https://arxiv.org/abs/1104.3602", "ref-16",
+            from_template(DFZ_INEQUALITIES[n]), {}});
+    }
+    return all;
+}
+
+// the actual variables standing for the formal set `formal`
+int place(int formal, const int perm[4])
+{
+    int set = 0;
+    for (int k = 0; k < 4; ++k)
+        if (formal & (1 << k))
+            set |= 1 << perm[k];
+    return set;
+}
+
+void add_mutinf(SparseVector& v, double c, int X, int Y, int Z)
+{
+    v.inc(X | Z, c);
+    v.inc(Y | Z, c);
+    v.inc(X | Y | Z, -c);
+    if (Z)
+        v.inc(Z, -c);
+}
+
+SparseVector instance(const std::vector<Quantity>& terms, const int perm[4])
+{
+    SparseVector v;
+    v.is_equality = false;
+    for (auto&& q : terms)
+        add_mutinf(v, q.c, place(q.X, perm), place(q.Y, perm),
+                   place(q.Z, perm));
+    return v;
+}
+
+std::string quantity_text(const Quantity& q, const int perm[4],
+                          const std::vector<std::string>& vars)
+{
+    double m = std::fabs(q.c);
+    return (m == 1 ? std::string() : format_number(m) + " ")
+         + "I(" + set_name(place(q.X, perm), vars) + ";"
+         + set_name(place(q.Y, perm), vars)
+         + (q.Z ? "|" + set_name(place(q.Z, perm), vars) : "") + ")";
+}
+
+// "Zhang-Yeung inequality (1998), A=X, B=Y, C=Z, D=W:  2 I(Z;W) <= ..."
+std::string instance_text(const Family& f, const int perm[4],
+                          const std::vector<std::string>& vars)
+{
+    std::string lhs, rhs;
+    for (auto&& q : f.terms) {
+        std::string& side = q.c < 0 ? lhs : rhs;
+        side += (side.empty() ? "" : " + ") + quantity_text(q, perm, vars);
+    }
+    std::string out = f.name + " with A=" + vars[perm[0]] + ", B="
+        + vars[perm[1]] + ", C=" + vars[perm[2]] + ", D=" + vars[perm[3]]
+        + ":  " + (lhs.empty() ? "0" : lhs) + " <= " + rhs;
+    if (!f.conditions.empty()) {
+        out += ",  given ";
+        for (size_t k = 0; k < f.conditions.size(); ++k)
+            out += (k ? " and " : "") + quantity_text(f.conditions[k], perm, vars)
+                 + " = 0";
+    }
+    return out;
+}
+
+double value_at(const SparseVector& v, const std::vector<double>& h)
+{
+    double x = v.get(0);
+    for (auto&& ent : v.entries)
+        if (ent.first > 0 && (size_t) ent.first < h.size())
+            x += ent.second * h[ent.first];
+    return x;
+}
+
+// u = t v for some t > 0 (ignoring zero entries)?
+bool proportional(const SparseVector& u, const SparseVector& v)
+{
+    double t = 0;
+    std::set<int> keys;
+    for (auto&& e : u.entries) if (std::fabs(e.second) > 1e-12) keys.insert(e.first);
+    for (auto&& e : v.entries) if (std::fabs(e.second) > 1e-12) keys.insert(e.first);
+    for (int k : keys) {
+        double a = u.get(k), b = v.get(k);
+        if (std::fabs(b) < 1e-12 || std::fabs(a) < 1e-12)
+            return false;
+        if (t == 0)
+            t = a / b;
+        if (t <= 0 || std::fabs(a - t * b) > 1e-9 * std::max(1.0, std::fabs(a)))
+            return false;
+    }
+    return t > 0;
+}
+
+// Prove `dir` >= 0 with the known inequalities added to `prob` as needed.
+// Rows added stay in `prob`, so the next direction starts from them.
+struct KnownSearch
+{
+    std::vector<std::array<int, 4>> perms;
+    // indices into known_families(), in tiers: the classic inequalities
+    // first, so that a statement is credited to the simplest known
+    // inequalities that prove it, not to later ones that imply them
+    std::vector<std::vector<int>> tiers;
+    std::set<std::pair<int, int>> added;        // (family, perm) already rows
+    std::map<std::pair<int, int>, bool> holds;  // conditions implied?
+
+    // every instance as (column, coefficient) pairs, built on first use and
+    // scaled to unit size, which is all that finding violated ones needs
+    std::map<int, std::vector<std::vector<std::pair<int, double>>>> compact;
+    const std::vector<std::pair<int, double>>& row(int family, int perm)
+    {
+        auto& rows = compact[family];
+        if (rows.empty()) {
+            const Family& f = known_families()[family];
+            double norm = 0;
+            for (auto&& q : f.terms)
+                norm += std::fabs(q.c);
+            rows.resize(perms.size());
+            for (size_t pi = 0; pi < perms.size(); ++pi) {
+                SparseVector v = instance(f.terms, perms[pi].data());
+                for (auto&& e : v.entries)
+                    if (e.first > 0 && e.second != 0)
+                        rows[pi].push_back({e.first, e.second / norm});
+            }
+        }
+        return rows[perm];
+    }
+};
+
+bool prove_with_known(ShannonTypeProblem& prob, const SparseVector& dir,
+                      const std::vector<std::string>& vars, Proof* proof,
+                      KnownSearch& ks, std::vector<int>* used)
+{
+    const auto& fams = known_families();
+    const std::vector<std::string>* pvars = proof ? &vars : nullptr;
+    const int per_round = 24, max_rounds = 60;
+
+    // A statement that is itself a known inequality (up to a positive
+    // factor, on some ordering of its variables) is credited to that one.
+    for (auto&& tier : ks.tiers) {
+        for (int fi : tier) {
+            const Family& f = fams[fi];
+            if (!f.conditions.empty())
+                continue;
+            for (size_t pi = 0; pi < ks.perms.size(); ++pi) {
+                SparseVector row = instance(f.terms, ks.perms[pi].data());
+                if (!proportional(dir, row))
+                    continue;
+                std::pair<int, int> key(fi, (int) pi);
+                if (!ks.added.count(key)) {
+                    prob.add_known(row, instance_text(f, ks.perms[pi].data(), vars), fi);
+                    ks.added.insert(key);
+                }
+                if (prob.check(dir, proof, pvars)) {
+                    if (used)
+                        *used = prob.known_families_used();
+                    return true;
+                }
+            }
+        }
+    }
+
+    std::vector<int> families;
+    for (auto&& tier : ks.tiers) {
+    families.insert(families.end(), tier.begin(), tier.end());
+    for (int round = 0; round < max_rounds; ++round) {
+        std::vector<double> h;
+        if (!prob.point_below(dir, &h))
+            break;                  // nothing left to cut off: check it
+
+        double scale = 1;
+        for (double x : h)
+            scale = std::max(scale, std::fabs(x));
+
+        // the instances this point violates, worst first
+        std::vector<std::pair<double, std::pair<int, int>>> cut;
+        for (int fi : families) {
+            for (size_t pi = 0; pi < ks.perms.size(); ++pi) {
+                double x = 0;
+                for (auto&& e : ks.row(fi, (int) pi))
+                    x += e.second * h[e.first];
+                if (x < -1e-7 * scale) {
+                    std::pair<int, int> key(fi, (int) pi);
+                    if (!ks.added.count(key))
+                        cut.push_back({x, key});
+                }
+            }
+        }
+        std::sort(cut.begin(), cut.end());
+
+        int taken = 0;
+        for (auto&& c : cut) {
+            if (taken >= per_round)
+                break;
+            const Family& f = fams[c.second.first];
+            const int* perm = ks.perms[c.second.second].data();
+            if (!f.conditions.empty()) {
+                // a conditional inequality holds only where its conditions
+                // do, so it may be used only if the constraints imply them
+                auto it = ks.holds.find(c.second);
+                if (it == ks.holds.end()) {
+                    bool all = true;
+                    for (auto&& q : f.conditions) {
+                        SparseVector neg = instance({{-q.c, q.X, q.Y, q.Z}}, perm);
+                        if (!prob.check(neg)) { all = false; break; }
+                    }
+                    it = ks.holds.insert({c.second, all}).first;
+                }
+                if (!it->second)
+                    continue;
+            }
+            prob.add_known(instance(f.terms, perm),
+                           instance_text(f, perm, vars), c.second.first);
+            ks.added.insert(c.second);
+            ++taken;
+        }
+        if (taken == 0)
+            break;                  // this tier all holds here: try the next
+
+        if (prob.check(dir, proof, pvars)) {
+            if (used)
+                *used = prob.known_families_used();
+            return true;
+        }
+    }
+    }
+    if (prob.check(dir, proof, pvars)) {
+        if (used)
+            *used = prob.known_families_used();
+        return true;
+    }
+    return false;
+}
+
+KnownSearch make_known_search(int num_vars)
+{
+    KnownSearch ks;
+    for (int a = 0; a < num_vars; ++a)
+        for (int b = 0; b < num_vars; ++b)
+            for (int c = 0; c < num_vars; ++c)
+                for (int d = 0; d < num_vars; ++d)
+                    if (a != b && a != c && a != d && b != c && b != d && c != d)
+                        ks.perms.push_back(std::array<int, 4>{{a, b, c, d}});
+    // Zhang-Yeung (conditional and not), then Matus's family, then the
+    // Dougherty-Freiling-Zeger list. With many variables the last is too
+    // much work per round on every ordering, so it is left out.
+    int count = (int) known_families().size();
+    ks.tiers = {{0, 1}, {}, {}};
+    for (int f = 2; f < 2 + 7; ++f)
+        ks.tiers[1].push_back(f);
+    if (num_vars <= 5)
+        for (int f = 2 + 7; f < count; ++f)
+            ks.tiers[2].push_back(f);
+    return ks;
+}
+
+}   // namespace
+
 
 
 //----------------------------------------
@@ -824,8 +1236,11 @@ ParserOutput parse(const std::vector<std::string>& exprs)
 // Prove each inquiry, printing the proof when asked for. A Markov chain or
 // an independence turns into several constraints, so a term says which line
 // it came from rather than which constraint.
-bool prove(const ParserOutput& out, std::ostream& os, bool show_proof)
+bool prove(const ParserOutput& out, std::ostream& os, bool show_proof,
+           std::vector<KnownUse>* known)
 {
+    if (known)
+        known->clear();
     if (out.var_names.empty()) {
         for (auto&& constraint : out.constraints) {
             if (!holds_constant(constraint))
@@ -840,6 +1255,9 @@ bool prove(const ParserOutput& out, std::ostream& os, bool show_proof)
     }
 
     ShannonTypeProblem prob(out.var_names.size());
+    KnownSearch ks;
+    bool searched = false;
+    std::vector<int> families;      // known ones used, in order of first use
     for (size_t i = 0; i < out.constraints.size(); ++i) {
         int row = i < out.constraint_line.size() ? out.constraint_line[i] : -1;
         std::string text = (row >= 0 && (size_t) row < out.source_lines.size())
@@ -865,6 +1283,24 @@ bool prove(const ParserOutput& out, std::ostream& os, bool show_proof)
             Proof proof;
             bool ok = prob.check(dir, show_proof ? &proof : nullptr,
                                  show_proof ? &out.var_names : nullptr);
+            if (ok && searched) {
+                // rows of known inequalities are already in; note any used
+                for (int f : prob.known_families_used())
+                    if (std::find(families.begin(), families.end(), f) == families.end())
+                        families.push_back(f);
+            }
+            if (!ok && known && out.var_names.size() >= 4) {
+                if (!searched) {
+                    ks = make_known_search((int) out.var_names.size());
+                    searched = true;
+                }
+                std::vector<int> used;
+                ok = prove_with_known(prob, dir, out.var_names,
+                                      show_proof ? &proof : nullptr, ks, &used);
+                for (int f : used)
+                    if (std::find(families.begin(), families.end(), f) == families.end())
+                        families.push_back(f);
+            }
             if (!ok)
                 return false;
             if (show_proof) {
@@ -876,6 +1312,12 @@ bool prove(const ParserOutput& out, std::ostream& os, bool show_proof)
                 }
             }
         }
+    }
+    if (known) {
+        const auto& fams = known_families();
+        for (int f : families)
+            known->push_back({fams[f].name, fams[f].reference, fams[f].url,
+                              fams[f].anchor});
     }
     return true;
 }

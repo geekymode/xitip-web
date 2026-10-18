@@ -21,6 +21,7 @@ try
     bool prove_it = false;
     bool show_proof = false;
     bool conditions = false;
+    bool shannon_only = false;
 
     // Options come first; everything after them is the expression and its
     // constraints. With none of them the tool counts variables, which is
@@ -34,6 +35,8 @@ try
             prove_it = show_proof = true;
         } else if (arg == "--conditions") {
             prove_it = conditions = true;
+        } else if (arg == "--shannon") {
+            prove_it = shannon_only = true;
         } else if (arg == "--") {
             // everything after this is input, even if it looks like a flag;
             // a caller passing untrusted text should always use it
@@ -41,7 +44,7 @@ try
             break;
         } else if (arg == "--help" || arg == "-h") {
             cout <<
-                "usage: oXitipLen [--prove|--proof] [--conditions] EXPRESSION [CONSTRAINT...]\n"
+                "usage: oXitipLen [--prove|--proof] [--conditions] [--shannon] EXPRESSION [CONSTRAINT...]\n"
                 "\n"
                 "  (no option)   print the number of distinct random variables\n"
                 "  --prove       say whether the expression is true\n"
@@ -49,6 +52,8 @@ try
                 "  --steps       the same as --proof\n"
                 "  --conditions  if it is not provable, find assumptions that\n"
                 "                would make it so\n"
+                "  --shannon     use the basic inequalities only, not also the\n"
+                "                known non-Shannon-type ones\n"
                 "  --           end of options; everything after is input\n"
                 "\n"
                 "With no expression, or with '-' last, they are read from\n"
@@ -82,9 +87,17 @@ try
         return 0;
     }
 
-    bool holds = prove(out, cout, show_proof);
+    vector<KnownUse> known;
+    bool holds = prove(out, cout, show_proof, shannon_only ? nullptr : &known);
     cout << "The information expression is "
          << (holds ? "TRUE" : "FALSE") << "." << endl;
+    if (holds && !known.empty()) {
+        cout << "\nIt is a non-Shannon-type inequality: it does not follow from the\n"
+                "basic inequalities, but from these known ones:\n";
+        for (auto&& k : known)
+            cout << "  " << k.name << "\n    " << k.reference << "\n    "
+                 << k.url << "\n";
+    }
     if (!holds && conditions) {
         cout << endl;
         print_conditions(cout, sufficient_conditions(out));

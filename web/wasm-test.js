@@ -12,6 +12,11 @@ const cases = [
   ["H(X) >= 1\nH(X) >= 2",                          "TRUE",  1],
   ["I(X;Y) = H(X) + H(Y) - H(X,Y)",                 "TRUE",  2],
   ["H(X1,X2,X3,X4) <= H(X1)+H(X2)+H(X3)+H(X4)",     "TRUE",  4],
+  // non-Shannon-type: proved from the known inequalities, which are named
+  ["2 I(C;D) <= I(A;B) + I(A;C,D) + 3 I(C;D|A) + I(C;D|B)", "TRUE NONSHANNON", 4],
+  ["I(C;D) <= I(C;D|A) + I(C;D|B)\nI(A;B) = 0\nI(A;B|C) = 0", "TRUE NONSHANNON", 4],
+  ["I(C;D) <= I(C;D|A) + I(C;D|B)",                 "FALSE", 4],
+  ["I(A;B) <= I(A;B|C) + I(A;B|D) + I(C;D)",        "FALSE", 4],   // Ingleton
   ["H(X) <<< H(Y)",                                 "ERROR", -1],
   ["",                                              "ERROR", -1],
 ];
@@ -45,9 +50,12 @@ createXitip().then(mod => {
     const got = nvars(text);
     let note = "";
     if (head !== want) { note = ` EXPECTED ${want}`; bad++; }
-    else if (want === "TRUE" && !body.includes("Proof of")) { note = " NO PROOF"; bad++; }
+    else if (want.startsWith("TRUE") && !body.includes("Proof of")) { note = " NO PROOF"; bad++; }
+    else if (want === "TRUE NONSHANNON" && !/^KNOWN\t[^\t]+\t[^\t]+\thttps:\/\/\S+\tref-\d+$/m.test(body)) {
+      note = " NO KNOWN LINE"; bad++;
+    }
     else if (wantVars >= 0 && got !== wantVars) { note = ` vars ${got} != ${wantVars}`; bad++; }
-    console.log(`${note ? "FAIL" : " ok "}  ${head.padEnd(5)} ${JSON.stringify(text).slice(0,44).padEnd(46)}${note}`);
+    console.log(`${note ? "FAIL" : " ok "}  ${head.padEnd(15)} ${JSON.stringify(text).slice(0,44).padEnd(46)}${note}`);
   }
 
   const conditions = mod.cwrap("xitip_conditions", "string", ["string"]);

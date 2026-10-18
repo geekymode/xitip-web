@@ -69,6 +69,30 @@ search: assuming a quantity is zero cannot help if it is already zero
 there. This is ``sufficient_conditions`` from Xitip.jl, and the two find
 the same sets in the same order.
 
+A statement that does not follow from the basic inequalities is tried
+again with the known non-Shannon-type inequalities, and if they prove it,
+the verdict says which ones::
+
+    $ ./oXitipLen --prove '2 I(C;D) <= I(A;B) + I(A;C,D) + 3 I(C;D|A) + I(C;D|B)'
+    The information expression is TRUE.
+
+    It is a non-Shannon-type inequality: it does not follow from the
+    basic inequalities, but from these known ones:
+      Zhang–Yeung inequality (1998)
+        Z. Zhang and R. W. Yeung, “On characterization of entropy function via information inequalities,” IEEE Transactions on Information Theory, vol. 44, no. 4, 1998
+        https://doi.org/10.1109/18.681320
+
+The known ones are the Zhang–Yeung inequalities of 1997 (conditional, used
+only where the constraints imply its conditions) and 1998, Matúš's family
+for s = 2..8, and the 214 four-variable inequalities of Dougherty, Freiling
+and Zeger (arXiv:1104.3602, Section VIII; the table is in
+``known_inequalities.hpp``). Each is applied with its four variables
+standing for any four distinct variables of the statement, the list of 214
+only for statements of up to five variables. They are added a few at a
+time, those that the current counterexample violates most, and in that
+order of families, so a statement is credited to the simplest ones that
+prove it. ``--shannon`` turns this off.
+
 The first expression is the statement; any further ones are constraints.
 With no expression, or with ``-`` last, they are read from standard input,
 one per line.

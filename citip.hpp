@@ -25,14 +25,15 @@ typedef std::vector<SparseVector> Matrix;
 
 
 // What a row of the LP stands for, so that a proof can name it. The rows
-// are the elemental inequalities followed by the user's constraints.
+// are the elemental inequalities, then the user's constraints, then any
+// instances of known non-Shannon-type inequalities.
 struct RowInfo
 {
-    enum Kind { ENTROPY, MUTINF, CONSTRAINT };
+    enum Kind { ENTROPY, MUTINF, CONSTRAINT, KNOWN };
     Kind kind;
     int i;              // ENTROPY: the variable that is conditioned
     int a, b, K;        // MUTINF: I(X_a ; X_b | X_K)
-    int index;          // CONSTRAINT: which one, counting from 1
+    int index;          // CONSTRAINT, KNOWN: which one, counting from 1
 };
 
 
@@ -104,10 +105,23 @@ public:
     // as the value of every elemental quantity there. False if none.
     bool counterexample(const SparseVector&, std::vector<double>* elemental);
 
+    // The same, as the joint entropies themselves: h[S] for every subset S
+    // (h[0] = 0). False if there is no such point.
+    bool point_below(const SparseVector&, std::vector<double>* h);
+
+    // An instance of a known non-Shannon-type inequality, as a row, with
+    // what to call it in a proof and the family it belongs to.
+    void add_known(const SparseVector&, const std::string& text, int family);
+
+    // The families whose rows the last successful check() relied on.
+    std::vector<int> known_families_used();
+
 protected:
     glp_prob* lp;
     std::vector<RowInfo> row_info;      // one per row, in the order added
     std::vector<std::string> constraint_text;
+    std::vector<std::string> known_text;
+    std::vector<int> known_family;
 };
 
 
@@ -165,9 +179,26 @@ ParserOutput parse(const std::vector<std::string>&);
 
 bool check(const ParserOutput&);
 
+// A known non-Shannon-type inequality that a proof used: what it is, where
+// it was published, and an anchor into the page's references.
+struct KnownUse
+{
+    std::string name;       // "Zhang-Yeung inequality (1998)"
+    std::string reference;  // authors, title, venue
+    std::string url;        // the paper
+    std::string anchor;     // "ref-4"
+};
+
 // Prove every inquiry, writing the proofs to the stream. Returns false as
 // soon as one of them does not hold.
-bool prove(const ParserOutput&, std::ostream& out, bool show_proof);
+//
+// With `known` given, a statement that does not follow from the basic
+// inequalities is tried again with the known non-Shannon-type inequalities
+// added (instances on single variables, as many as needed); if that proves
+// it, `known` lists the inequalities the proof relies on. Empty when the
+// statement is Shannon-type.
+bool prove(const ParserOutput&, std::ostream& out, bool show_proof,
+           std::vector<KnownUse>* known = nullptr);
 
 
 // One set of assumptions under which a statement becomes provable: each is

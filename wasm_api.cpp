@@ -43,9 +43,12 @@ extern "C" {
 
 // Returns one of
 //     TRUE\n<proof, possibly empty>
+//     TRUE NONSHANNON\n<one line per known inequality used>\n<proof>
 //     FALSE\n
 //     ERROR\n<message>
 // which is simpler to pick apart in JavaScript than JSON is to write here.
+// A known inequality's line is  KNOWN\t<name>\t<reference>\t<url>\t<anchor>,
+// and a blank line ends them.
 const char* xitip_solve(const char* text, int want_proof)
 {
     try {
@@ -55,8 +58,19 @@ const char* xitip_solve(const char* text, int want_proof)
 
         ParserOutput out = parse(lines);
         std::ostringstream proof;
-        bool holds = prove(out, proof, want_proof != 0);
-        result = (holds ? "TRUE\n" : "FALSE\n");
+        std::vector<KnownUse> known;
+        bool holds = prove(out, proof, want_proof != 0, &known);
+        if (!holds) {
+            result = "FALSE\n";
+        } else if (known.empty()) {
+            result = "TRUE\n";
+        } else {
+            result = "TRUE NONSHANNON\n";
+            for (auto&& k : known)
+                result += "KNOWN\t" + k.name + "\t" + k.reference + "\t"
+                        + k.url + "\t" + k.anchor + "\n";
+            result += "\n";
+        }
         if (holds && want_proof)
             result += proof.str();
     }
