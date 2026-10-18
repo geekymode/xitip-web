@@ -11,12 +11,13 @@
             --true:#5fcf92; --false:#f0877a; --bg:#16181c; --card:#1e2128; }
   }
   * { box-sizing: border-box; }
-  /* the logo: the double o of Proof is the information diagram of I(X;Y) */
+  /* the logo, "Xitip: with Proof": the double o of Proof is the information diagram of I(X;Y) */
   @font-face { font-family: "Syne"; font-weight: 700; font-display: swap;
-               src: url("fonts/syne-700-xitiproof.woff") format("woff"); }
+               src: url("fonts/syne-700-xitip.woff") format("woff"); }
   .brand { display:inline-flex; align-items:baseline; margin:0 0 14px;
            font:700 clamp(1.7rem, 6vw, 2.2rem)/1 "Syne", system-ui, sans-serif;
            letter-spacing:-.015em; color:var(--ink); text-decoration:none; }
+  .brand .with { color:var(--dim); white-space:pre; }
   .brand svg { height:.62em; width:auto; margin:0 -.02em; position:relative; top:.02em; }
   body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.55
          system-ui,-apple-system,"Segoe UI",sans-serif; }
@@ -93,7 +94,7 @@
     {left: '\\(', right: '\\)', display: false}]})"></script>
 
 <div class="wrap">
-  <a class="brand" href="./" aria-label="XitiProof">XitiPr<svg viewBox="0 0 316 220" aria-hidden="true">
+  <a class="brand" href="./" aria-label="Xitip: with Proof">Xitip:<span class="with"> with </span>Pr<svg viewBox="0 0 316 220" aria-hidden="true">
     <defs><clipPath id="brand-clip"><circle cx="110" cy="110" r="94"/></clipPath></defs>
     <circle cx="110" cy="110" r="94" fill="#4f7cff"/>
     <circle cx="206" cy="110" r="94" fill="#f08a3e"/>
