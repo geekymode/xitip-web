@@ -51,6 +51,8 @@
   .katex-display { margin:.7em 0; overflow-x:auto; overflow-y:hidden;
                    padding:2px 0; }
   .katex { font-size:1.08em; }
+  ul.nsi { padding-left:1.2em; }
+  ul.nsi li { margin:.45em 0; }
   @media (max-width: 600px) { .katex-display > .katex { font-size:.86em; } }
   a.cite { text-decoration:none; font-size:.85em; }
   ol.refs { padding-left:1.6em; font-size:.9rem; }
@@ -247,6 +249,57 @@
        basic inequalities. So when this tool answers TRUE the statement is
        a theorem, and when it answers FALSE for four or more variables the
        statement may still be a theorem, only not a Shannon-type one.</p>
+
+    <h3>7&ensp;Known Non-Shannon-Type Inequalities</h3>
+    <p>Infinitely many non-Shannon-type inequalities are known, and no
+       finite list can ever be complete: for four or more variables,
+       \(\overline{\Gamma_n^*}\) cannot be described by finitely many
+       linear inequalities <a class="cite" href="#ref-14">[14]</a>. Almost
+       all were found the same way, by adding auxiliary random variables
+       with special properties and applying Shannon inequalities to the
+       enlarged set. The landmarks:</p>
+    <ul class="nsi">
+      <li><b>Zhang&ndash;Yeung, 1997</b> <a class="cite" href="#ref-10">[10]</a>:
+        the first, a <i>conditional</i> inequality:
+        \[ \begin{gathered}
+          I(A;B) = I(A;B \mid C) = 0 \\
+          \Longrightarrow\; I(C;D) \le I(C;D \mid A) + I(C;D \mid B).
+        \end{gathered} \]</li>
+      <li><b>Zhang&ndash;Yeung, 1998</b> <a class="cite" href="#ref-4">[4]</a>:
+        the first unconditional one, the four-variable inequality above.</li>
+      <li><b>Makarychev, Makarychev, Romashchenko and Vereshchagin, 2002</b>
+        <a class="cite" href="#ref-11">[11]</a>: a new class, including a
+        five-variable generalization of Zhang&ndash;Yeung.</li>
+      <li><b>Zhang, 2003</b> <a class="cite" href="#ref-12">[12]</a>:
+        a further non-Shannon-type inequality.</li>
+      <li><b>Dougherty, Freiling and Zeger, 2006</b>
+        <a class="cite" href="#ref-13">[13]</a>: six new four-variable
+        inequalities.</li>
+      <li><b>Mat&uacute;&scaron;, 2007</b> <a class="cite" href="#ref-14">[14]</a>:
+        infinite families. One of them, for \(s = 1, 2, 3, \dots\), is
+        \[ \begin{aligned}
+          s\,I(A;B) \;\le\;& \tfrac{s(s+3)}{2}\,I(A;B \mid C)
+            + \tfrac{s(s+1)}{2}\,I(A;C \mid B) \\
+          &+ I(B;C \mid A) + s\,I(A;B \mid D) + s\,I(C;D),
+        \end{aligned} \]
+        and \(s = 1\) is Zhang&ndash;Yeung. These families prove that
+        \(\overline{\Gamma_4^*}\) is not a polyhedron.</li>
+      <li><b>Xu, Wang and Sun, 2008</b> <a class="cite" href="#ref-15">[15]</a>:
+        a projection method, giving more inequalities and another infinite
+        family.</li>
+      <li><b>Dougherty, Freiling and Zeger, 2011</b>
+        <a class="cite" href="#ref-16">[16]</a>: a systematic computer
+        search, which derives Zhang&ndash;Yeung with a single auxiliary
+        variable and lists over two hundred four-variable inequalities and
+        several infinite families.</li>
+      <li><b>Kaced and Romashchenko, 2011</b>
+        <a class="cite" href="#ref-17">[17]</a>: <i>essentially
+        conditional</i> inequalities, such as Zhang&ndash;Yeung 1997, which
+        hold under their conditions but follow from no unconditional
+        inequality.</li>
+    </ul>
+    <p>None of these can be proved by this tool, which proves Shannon-type
+       inequalities only: entered here, each comes back FALSE.</p>
   </details>
 
   <details id="about">
@@ -340,12 +393,8 @@
        Ying-On Yan at the Chinese University of Hong Kong, and
        <a href="http://xitip.epfl.ch/">Xitip</a>
        <a class="cite" href="#ref-9">[9]</a>, by R.&nbsp;Pulikkoonattu,
-       E.&nbsp;Perron and S.&nbsp;Diggavi at EPFL.</p>
-
-    <h3>Visitor Count</h3>
-    <p>Visits to this page are counted anonymously with
-       <a href="https://www.goatcounter.com">GoatCounter</a>, without
-       cookies. What you type is not recorded.</p>
+       E.&nbsp;Perron and S.&nbsp;Diggavi at &Eacute;cole Polytechnique
+       F&eacute;d&eacute;rale de Lausanne (EPFL), Switzerland.</p>
   </details>
 
   <details id="references">
@@ -381,6 +430,37 @@
       <li id="ref-9">R.&nbsp;Pulikkoonattu, E.&nbsp;Perron and S.&nbsp;Diggavi,
         <i>Xitip: Information Theoretic Inequalities Prover</i>, software,
         EPFL. <a href="http://xitip.epfl.ch/">xitip.epfl.ch</a></li>
+      <li id="ref-10">Z.&nbsp;Zhang and R.&nbsp;W. Yeung, &ldquo;A non-Shannon-type
+        conditional inequality of information quantities,&rdquo; <i>IEEE
+        Transactions on Information Theory</i>, vol.&nbsp;43, no.&nbsp;6,
+        pp.&nbsp;1982&ndash;1985, Nov. 1997.</li>
+      <li id="ref-11">K.&nbsp;Makarychev, Y.&nbsp;Makarychev, A.&nbsp;Romashchenko
+        and N.&nbsp;Vereshchagin, &ldquo;A new class of non-Shannon-type
+        inequalities for entropies,&rdquo; <i>Communications in Information
+        and Systems</i>, vol.&nbsp;2, no.&nbsp;2, pp.&nbsp;147&ndash;166, Dec. 2002.</li>
+      <li id="ref-12">Z.&nbsp;Zhang, &ldquo;On a new non-Shannon type information
+        inequality,&rdquo; <i>Communications in Information and Systems</i>,
+        vol.&nbsp;3, no.&nbsp;1, pp.&nbsp;47&ndash;60, June 2003.</li>
+      <li id="ref-13">R.&nbsp;Dougherty, C.&nbsp;Freiling and K.&nbsp;Zeger,
+        &ldquo;Six new non-Shannon information inequalities,&rdquo; <i>Proc.
+        IEEE International Symposium on Information Theory (ISIT)</i>,
+        Seattle, pp.&nbsp;233&ndash;236, July 2006.</li>
+      <li id="ref-14">F.&nbsp;Mat&uacute;&scaron;, &ldquo;Infinitely many
+        information inequalities,&rdquo; <i>Proc. IEEE International Symposium
+        on Information Theory (ISIT)</i>, Nice, June 2007.</li>
+      <li id="ref-15">W.&nbsp;Xu, J.&nbsp;Wang and J.&nbsp;Sun, &ldquo;A projection
+        method for derivation of non-Shannon-type information
+        inequalities,&rdquo; <i>Proc. IEEE International Symposium on
+        Information Theory (ISIT)</i>, Toronto, pp.&nbsp;2116&ndash;2120, July 2008.</li>
+      <li id="ref-16">R.&nbsp;Dougherty, C.&nbsp;Freiling and K.&nbsp;Zeger,
+        &ldquo;Non-Shannon information inequalities in four random
+        variables,&rdquo; 2011.
+        <a href="https://arxiv.org/abs/1104.3602">arXiv:1104.3602</a></li>
+      <li id="ref-17">T.&nbsp;Kaced and A.&nbsp;Romashchenko, &ldquo;On essentially
+        conditional information inequalities,&rdquo; <i>Proc. IEEE
+        International Symposium on Information Theory (ISIT)</i>, St.
+        Petersburg, 2011.
+        <a href="https://arxiv.org/abs/1103.2545">arXiv:1103.2545</a></li>
     </ol>
   </details>
 

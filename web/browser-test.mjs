@@ -130,7 +130,7 @@ await check("NONE", 0, "H(X) <<< H(Y)");   // a syntax error shows a message, no
 {
   await load("");
   const ok = await js(`!!document.getElementById("foundations") && !!document.getElementById("references")
-                       && document.querySelectorAll("ol.refs li").length === 9`);
+                       && document.querySelectorAll("ol.refs li").length === 17`);
   await js(`document.getElementById("foundations").open = true;
             document.querySelector('#foundations a.cite[href="#ref-3"]').click()`);
   await sleep(300);
